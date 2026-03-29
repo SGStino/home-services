@@ -18,17 +18,19 @@ Current baseline module boundaries:
 
 - `hs-eventbus-mqtt-ha`
 	- `adapter.rs`: adapter-facing API and trait implementation entrypoints
+	- `config.rs`: Home Assistant MQTT config defaults and environment-based config assembly
 	- `transport.rs`: MQTT client options and event-loop management
 	- `command.rs`: command route typing and command payload mapping helpers
 	- `payloads.rs` and `topics.rs`: Home Assistant payload and topic conventions
 - `hs-core`
 	- `runtime.rs`: device runtime orchestration and publish paths
+	- `device_service.rs`: reusable service lifecycle loop (startup, command/tick loop, shutdown)
 	- `runtime_metrics.rs`: runtime metric instruments and initialization
 	- `telemetry.rs`: OpenTelemetry and tracing initialization
 - `hs-service-device-demo`
 	- `main.rs`: process entrypoint only
-	- `app.rs`: runtime loop and shutdown flow
-	- `bootstrap.rs`: demo device/capability/config assembly
+	- `app.rs`: demo behavior implementation (tick + command handling) wired to shared lifecycle runner
+	- `bootstrap.rs`: demo device and capability assembly only
 	- `command_payload.rs` and `time.rs`: small focused helpers
 
 Guideline:
@@ -87,6 +89,7 @@ Responsibilities:
 - orchestrating publish calls to the event bus adapter
 - binding device communication to the selected event bus adapter
 - enforcing a small, consistent execution model across all services
+- providing a reusable service lifecycle runner so new device services only implement behavior callbacks
 
 The core is the main place where common engineering concerns live. Device-specific logic should stay out of it.
 
@@ -107,6 +110,7 @@ Responsibilities:
 - publish availability and health
 - consume command messages when supported
 - encode payloads for the selected bus protocol
+- own adapter-specific connection configuration conventions (for example env-to-config mapping for HA MQTT)
 
 The adapter is replaceable. A device implementation should not need to know whether it is publishing through a Home Assistant MQTT model, Sparkplug, or another bus protocol.
 

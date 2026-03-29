@@ -27,6 +27,19 @@ The current workspace has been reorganized around the architecture in `docs/arch
 - The demo service is intentionally minimal and proves the crate boundaries.
 - Registry, gateway, and richer device communication crates are expected to be added back as bus consumers or concrete device implementations.
 
+## Protocol and design references
+
+The Home Assistant-over-MQTT conventions in this workspace are based on the following upstream sources:
+
+- Home Assistant MQTT discovery docs: <https://www.home-assistant.io/integrations/mqtt/#mqtt-discovery>
+- Home Assistant MQTT switch platform docs (command/state payload behavior): <https://www.home-assistant.io/integrations/switch.mqtt>
+
+Supporting local infrastructure and observability references:
+
+- Eclipse Mosquitto documentation: <https://mosquitto.org/documentation>
+- OpenTelemetry documentation: <https://opentelemetry.io/docs>
+- Grafana LGTM stack overview: <https://grafana.com/oss/lgtm/>
+
 ## Dev container workflow
 
 The workspace includes a dev container under `.devcontainer/`.

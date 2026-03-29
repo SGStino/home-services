@@ -6,9 +6,11 @@ license.workspace = true
 
 [dependencies]
 anyhow.workspace = true
+async-trait.workspace = true
 hs-contracts = { path = "../hs-contracts" }
 hs-eventbus-api = { path = "../hs-eventbus-api" }
 reqwest.workspace = true
+tokio.workspace = true
 tracing.workspace = true
 tracing-subscriber.workspace = true
 tracing-opentelemetry.workspace = true

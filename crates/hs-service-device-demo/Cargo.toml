@@ -6,6 +6,7 @@ license.workspace = true
 
 [dependencies]
 anyhow.workspace = true
+async-trait.workspace = true
 hs-contracts = { path = "../hs-contracts" }
 hs-core = { path = "../hs-core" }
 hs-eventbus-mqtt-ha = { path = "../hs-eventbus-mqtt-ha" }
