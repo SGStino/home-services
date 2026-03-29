@@ -1,7 +1,9 @@
 use anyhow::{Context, Result};
 use opentelemetry::{global, trace::TracerProvider as _, KeyValue};
 use opentelemetry_appender_tracing::layer::OpenTelemetryTracingBridge;
-use opentelemetry_otlp::{LogExporter, MetricExporter, SpanExporter, WithExportConfig, WithHttpConfig};
+use opentelemetry_otlp::{
+    LogExporter, MetricExporter, SpanExporter, WithExportConfig, WithHttpConfig,
+};
 use opentelemetry_sdk::{
     logs::SdkLoggerProvider,
     metrics::{periodic_reader_with_async_runtime::PeriodicReader, SdkMeterProvider},
@@ -10,7 +12,9 @@ use opentelemetry_sdk::{
     Resource,
 };
 use std::{env, time::Duration};
-use tracing_subscriber::{filter::filter_fn, layer::SubscriberExt, util::SubscriberInitExt, EnvFilter, Layer};
+use tracing_subscriber::{
+    filter::filter_fn, layer::SubscriberExt, util::SubscriberInitExt, EnvFilter, Layer,
+};
 
 const DEFAULT_LOG_FILTER: &str = "info";
 const DEFAULT_OTLP_ENDPOINT: &str = "http://127.0.0.1:4318";
@@ -51,7 +55,8 @@ impl Drop for TelemetryGuard {
 
 pub fn init(service_name: &str) -> Result<TelemetryGuard> {
     let cfg = TelemetryConfig::from_env(service_name);
-    let env_filter = EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new(DEFAULT_LOG_FILTER));
+    let env_filter =
+        EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new(DEFAULT_LOG_FILTER));
     let fmt_layer = tracing_subscriber::fmt::layer()
         .with_target(true)
         .with_line_number(true)
@@ -133,8 +138,10 @@ pub fn init(service_name: &str) -> Result<TelemetryGuard> {
 
     if let Some(ref provider) = logger_provider {
         // Prevent recursion from OpenTelemetry SDK internal diagnostics being bridged back into OTLP logs.
-        let otel_log_layer = OpenTelemetryTracingBridge::new(provider)
-            .with_filter(filter_fn(|metadata| !metadata.target().starts_with("opentelemetry")));
+        let otel_log_layer =
+            OpenTelemetryTracingBridge::new(provider).with_filter(filter_fn(|metadata| {
+                !metadata.target().starts_with("opentelemetry")
+            }));
 
         registry
             .with(otel_log_layer)
@@ -214,7 +221,10 @@ impl TelemetryConfig {
 
 fn env_bool(name: &str, default: bool) -> bool {
     match env::var(name) {
-        Ok(value) => matches!(value.trim().to_ascii_lowercase().as_str(), "1" | "true" | "yes" | "on"),
+        Ok(value) => matches!(
+            value.trim().to_ascii_lowercase().as_str(),
+            "1" | "true" | "yes" | "on"
+        ),
         Err(_) => default,
     }
 }

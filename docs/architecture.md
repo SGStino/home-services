@@ -9,6 +9,35 @@
 - Each device microservice must have a minimal resource footprint.
 - Device protocol handling must be isolated from event bus integration concerns.
 
+## Code organization guardrails
+
+To keep service implementations maintainable as features grow, each crate should keep
+transport, mapping, runtime orchestration, and protocol-specific concerns in separate modules.
+
+Current baseline module boundaries:
+
+- `hs-eventbus-mqtt-ha`
+	- `adapter.rs`: adapter-facing API and trait implementation entrypoints
+	- `transport.rs`: MQTT client options and event-loop management
+	- `command.rs`: command route typing and command payload mapping helpers
+	- `payloads.rs` and `topics.rs`: Home Assistant payload and topic conventions
+- `hs-core`
+	- `runtime.rs`: device runtime orchestration and publish paths
+	- `runtime_metrics.rs`: runtime metric instruments and initialization
+	- `telemetry.rs`: OpenTelemetry and tracing initialization
+- `hs-service-device-demo`
+	- `main.rs`: process entrypoint only
+	- `app.rs`: runtime loop and shutdown flow
+	- `bootstrap.rs`: demo device/capability/config assembly
+	- `command_payload.rs` and `time.rs`: small focused helpers
+
+Guideline:
+
+- avoid combining connection management, event loops, payload translation, and
+	business-level command handling in a single file
+- prefer adding a new module once a file starts carrying more than one primary
+	responsibility
+
 ## Architectural model
 
 The platform is composed of many small device-focused microservices plus a shared message bus.

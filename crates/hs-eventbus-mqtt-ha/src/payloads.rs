@@ -68,7 +68,10 @@ pub fn discovery_payload(
             ));
             payload["payload_press"] = json!("PRESS");
             // Stateless button does not publish state_topic in HA model.
-            payload.as_object_mut().expect("json object").remove("state_topic");
+            payload
+                .as_object_mut()
+                .expect("json object")
+                .remove("state_topic");
         }
         _ => {}
     }

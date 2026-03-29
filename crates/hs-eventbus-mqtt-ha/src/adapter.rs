@@ -1,83 +1,42 @@
-use std::{collections::HashMap, sync::Arc, time::Duration};
-
 use anyhow::Result;
 use async_trait::async_trait;
 use hs_contracts::{
-    Availability, AvailabilityMessage, CapabilityDescriptor, CapabilityKind, CommandMessage,
-    DeviceDescriptor, DiscoveryMessage, StateMessage,
+    AvailabilityMessage, CapabilityDescriptor, CommandMessage, DeviceDescriptor, DiscoveryMessage,
+    StateMessage,
 };
 use hs_eventbus_api::EventBusAdapter;
-use rumqttc::{AsyncClient, Event, LastWill, MqttOptions, Packet, QoS};
-use tokio::sync::{broadcast, RwLock};
-use tracing::{debug, error, info, warn};
+use rumqttc::{AsyncClient, QoS};
+use tokio::sync::broadcast;
+use tracing::{debug, info};
 
 use crate::{
+    command::{supports_commands, CommandRoute, CommandRoutes},
     config::HomeAssistantMqttConfig,
     payloads::{availability_payload, discovery_payload, state_payload},
     topics::{availability_topic, command_topic, config_topic, state_topic},
+    transport::{create_client, spawn_command_loop},
 };
 
 #[derive(Clone)]
 pub struct HomeAssistantMqttAdapter {
     config: HomeAssistantMqttConfig,
     client: AsyncClient,
-    command_routes: Arc<RwLock<HashMap<String, (String, String)>>>,
+    command_routes: CommandRoutes,
     commands_tx: broadcast::Sender<CommandMessage>,
 }
 
 impl HomeAssistantMqttAdapter {
     pub async fn connect(config: HomeAssistantMqttConfig) -> Result<Self> {
-        let mut options = MqttOptions::new(
-            config.client_id.clone(),
-            config.broker_host.clone(),
-            config.broker_port,
-        );
-        options.set_keep_alive(Duration::from_secs(10));
-
-        let lwt_topic = availability_topic(&config.node_id, &config.lwt_device_id);
-        options.set_last_will(LastWill::new(
-            lwt_topic,
-            availability_payload(&Availability::Offline),
-            QoS::AtLeastOnce,
-            true,
-        ));
-
-        let (client, mut event_loop) = AsyncClient::new(options, 50);
-        let routes: Arc<RwLock<HashMap<String, (String, String)>>> = Arc::new(RwLock::new(HashMap::new()));
-        let routes_for_loop = Arc::clone(&routes);
+        let (client, event_loop) = create_client(&config);
+        let routes: CommandRoutes =
+            std::sync::Arc::new(tokio::sync::RwLock::new(std::collections::HashMap::new()));
         let (commands_tx, _) = broadcast::channel(128);
-        let commands_tx_for_loop = commands_tx.clone();
 
-        tokio::spawn(async move {
-            loop {
-                match event_loop.poll().await {
-                    Ok(Event::Incoming(Packet::Publish(msg))) => {
-                        let topic = msg.topic.clone();
-                        let route = routes_for_loop.read().await.get(&topic).cloned();
-                        if let Some((device_id, capability_id)) = route {
-                            let payload_text = String::from_utf8(msg.payload.to_vec())
-                                .unwrap_or_else(|_| String::new());
-                            let payload = serde_json::from_str::<serde_json::Value>(&payload_text)
-                                .unwrap_or_else(|_| serde_json::Value::String(payload_text));
-                            let command = CommandMessage {
-                                device_id,
-                                capability_id,
-                                payload,
-                            };
-
-                            if commands_tx_for_loop.send(command).is_err() {
-                                warn!("command received but no active command receiver");
-                            }
-                        }
-                    }
-                    Ok(_) => {}
-                    Err(err) => {
-                        error!(error = %err, "mqtt event loop error");
-                        tokio::time::sleep(Duration::from_secs(2)).await;
-                    }
-                }
-            }
-        });
+        spawn_command_loop(
+            event_loop,
+            std::sync::Arc::clone(&routes),
+            commands_tx.clone(),
+        );
 
         Ok(Self {
             config,
@@ -93,16 +52,24 @@ impl HomeAssistantMqttAdapter {
         capabilities: &[CapabilityDescriptor],
     ) -> Result<broadcast::Receiver<CommandMessage>> {
         for capability in capabilities {
-            let supports_commands = matches!(capability.kind, CapabilityKind::Switch | CapabilityKind::Button);
-            if !supports_commands {
+            if !supports_commands(&capability.kind) {
                 continue;
             }
 
-            let topic = command_topic(&self.config.node_id, &device.device_id, &capability.capability_id);
-            self.client.subscribe(topic.clone(), QoS::AtLeastOnce).await?;
+            let topic = command_topic(
+                &self.config.node_id,
+                &device.device_id,
+                &capability.capability_id,
+            );
+            self.client
+                .subscribe(topic.clone(), QoS::AtLeastOnce)
+                .await?;
             self.command_routes.write().await.insert(
                 topic,
-                (device.device_id.clone(), capability.capability_id.clone()),
+                CommandRoute {
+                    device_id: device.device_id.clone(),
+                    capability_id: capability.capability_id.clone(),
+                },
             );
         }
 

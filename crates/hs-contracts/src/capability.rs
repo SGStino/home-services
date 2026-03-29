@@ -78,19 +78,39 @@ pub struct LightFeatures {
 
 impl LightFeatures {
     pub fn on_off_only() -> Self {
-        Self { brightness: false, color_temp: false, rgb: false, effects: false }
+        Self {
+            brightness: false,
+            color_temp: false,
+            rgb: false,
+            effects: false,
+        }
     }
 
     pub fn dimmable() -> Self {
-        Self { brightness: true, color_temp: false, rgb: false, effects: false }
+        Self {
+            brightness: true,
+            color_temp: false,
+            rgb: false,
+            effects: false,
+        }
     }
 
     pub fn color_temp() -> Self {
-        Self { brightness: true, color_temp: true, rgb: false, effects: false }
+        Self {
+            brightness: true,
+            color_temp: true,
+            rgb: false,
+            effects: false,
+        }
     }
 
     pub fn full_color() -> Self {
-        Self { brightness: true, color_temp: true, rgb: true, effects: false }
+        Self {
+            brightness: true,
+            color_temp: true,
+            rgb: true,
+            effects: false,
+        }
     }
 }
 
