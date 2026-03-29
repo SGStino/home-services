@@ -5,11 +5,13 @@ use hs_contracts::{
     StateMessage,
 };
 use hs_eventbus_api::EventBusAdapter;
+use opentelemetry::KeyValue;
 use rumqttc::{AsyncClient, QoS};
 use tokio::sync::broadcast;
 use tracing::{debug, info};
 
 use crate::{
+    metrics::mqtt_metrics,
     command::{supports_commands, CommandRoute, CommandRoutes},
     config::HomeAssistantMqttConfig,
     payloads::{availability_payload, discovery_payload, state_payload},
@@ -93,9 +95,17 @@ impl EventBusAdapter for HomeAssistantMqttAdapter {
             );
             let payload = discovery_payload(discovery, capability, &self.config.node_id);
 
-            self.client
+            let result = self
+                .client
                 .publish(topic.clone(), QoS::AtLeastOnce, true, payload.to_string())
-                .await?;
+                .await;
+
+            let outcome = if result.is_ok() { "ok" } else { "error" };
+            mqtt_metrics().publishes_total.add(
+                1,
+                &[KeyValue::new("topic", topic.clone()), KeyValue::new("outcome", outcome)],
+            );
+            result?;
 
             info!(
                 topic = %topic,
@@ -112,9 +122,17 @@ impl EventBusAdapter for HomeAssistantMqttAdapter {
         let topic = state_topic(&self.config.node_id, &state.device_id, &state.capability_id);
         let payload = state_payload(state);
 
-        self.client
+        let result = self
+            .client
             .publish(topic.clone(), QoS::AtLeastOnce, false, payload)
-            .await?;
+            .await;
+
+        let outcome = if result.is_ok() { "ok" } else { "error" };
+        mqtt_metrics().publishes_total.add(
+            1,
+            &[KeyValue::new("topic", topic.clone()), KeyValue::new("outcome", outcome)],
+        );
+        result?;
 
         debug!(topic = %topic, "published state update");
         Ok(())
@@ -124,9 +142,17 @@ impl EventBusAdapter for HomeAssistantMqttAdapter {
         let topic = availability_topic(&self.config.node_id);
         let payload = availability_payload(&availability.status);
 
-        self.client
+        let result = self
+            .client
             .publish(topic.clone(), QoS::AtLeastOnce, true, payload)
-            .await?;
+            .await;
+
+        let outcome = if result.is_ok() { "ok" } else { "error" };
+        mqtt_metrics().publishes_total.add(
+            1,
+            &[KeyValue::new("topic", topic.clone()), KeyValue::new("outcome", outcome)],
+        );
+        result?;
 
         info!(topic = %topic, status = %payload, device_id = %availability.device_id, "published availability");
         Ok(())

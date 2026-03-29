@@ -1,6 +1,7 @@
 mod adapter;
 mod command;
 mod config;
+mod metrics;
 mod payloads;
 mod topics;
 mod transport;
