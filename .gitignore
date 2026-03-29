@@ -2,3 +2,5 @@
 /.vscode/
 Cargo.lock
 .env
+.env.local
+.env.*.local

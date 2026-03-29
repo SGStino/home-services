@@ -32,6 +32,12 @@ Current baseline module boundaries:
 	- `app.rs`: demo behavior implementation (tick + command handling) wired to shared lifecycle runner
 	- `bootstrap.rs`: demo device and capability assembly only
 	- `command_payload.rs` and `time.rs`: small focused helpers
+- `hs-service-device-esphome`
+	- `main.rs`: process entrypoint only
+	- `app.rs`: ESPHome bridge behavior implementation (state drain + command forward) wired to shared lifecycle runner
+	- `config.rs`: environment-driven device metadata plus ESPHome API endpoint and auth settings
+	- `esphome.rs`: ESPHome native API client, entity discovery, state decoding, and command forwarding
+	- `time.rs`: timestamp helper
 
 Guideline:
 
@@ -225,6 +231,8 @@ The normal command path is:
 2. the event bus adapter receives and decodes the command
 3. the central core validates and routes it
 4. the device communication tier sends the device-native operation
+
+For the ESPHome native API bridge service, step 4 maps capability commands onto ESPHome native API entity commands and forwards them over the device session.
 
 ## Message categories
 

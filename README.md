@@ -17,6 +17,7 @@ The current workspace has been reorganized around the architecture in `docs/arch
 - `crates/hs-eventbus`: event bus abstraction traits.
 - `crates/hs-eventbus-mqtt-ha`: Home Assistant over MQTT event bus adapter.
 - `crates/hs-service-device-demo`: a minimal demo device microservice composed from the shared crates.
+- `crates/hs-service-device-esphome`: ESPHome native API microservice that discovers ESPHome entities at runtime and republishes them through the canonical Home Assistant MQTT adapter.
 - `docs/architecture.md`: canonical architecture document.
 - `docker-compose.yml`: local Mosquitto broker, OpenTelemetry Collector, and Grafana LGTM stack for development.
 
@@ -114,6 +115,20 @@ Inside the dev container:
    Start-Process http://127.0.0.1:3000
    ```
 
+## Run the ESPHome native API service
+
+Set the ESPHome API endpoint and start:
+
+```bash
+export HS_DEVICE_ID="esphome-living-room-01"
+export HS_DEVICE_NAME="ESPHome Living Room"
+export ESPHOME_API_HOST="192.168.2.57"
+export ESPHOME_API_PORT="6053"
+# Optional when your ESPHome node uses API encryption
+# export ESPHOME_API_ENCRYPTION_KEY="base64-noise-psk"
+
+cargo run -p hs-service-device-esphome
+```
 ## Service ports
 
 - Mosquitto MQTT broker: `1883`

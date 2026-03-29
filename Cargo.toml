@@ -5,6 +5,7 @@ members = [
     "crates/hs-eventbus-api",
     "crates/hs-eventbus-mqtt-ha",
     "crates/hs-service-device-demo",
+    "crates/hs-service-device-esphome",
 ]
 resolver = "2"
 
@@ -30,4 +31,5 @@ opentelemetry-appender-tracing = "0.29"
 opentelemetry = "0.29"
 opentelemetry_sdk = { version = "0.29", features = ["rt-tokio", "experimental_metrics_periodicreader_with_async_runtime"] }
 opentelemetry-otlp = { version = "0.29", features = ["http-proto", "reqwest-client", "trace", "metrics", "logs"] }
+esphome-native-api = "2.0.7"
 uuid = { version = "1.16", features = ["v4", "serde"] }
