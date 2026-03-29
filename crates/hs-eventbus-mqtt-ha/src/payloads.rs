@@ -20,7 +20,7 @@ pub fn discovery_payload(
             capability.capability_id
         ),
         "state_topic": state_topic(node_id, &device.device_id, &capability.capability_id),
-        "availability_topic": availability_topic(node_id, &device.device_id),
+        "availability_topic": availability_topic(node_id),
         "payload_available": "online",
         "payload_not_available": "offline",
         "device": {

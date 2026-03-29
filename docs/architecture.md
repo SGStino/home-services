@@ -18,7 +18,7 @@ Current baseline module boundaries:
 
 - `hs-eventbus-mqtt-ha`
 	- `adapter.rs`: adapter-facing API and trait implementation entrypoints
-	- `config.rs`: Home Assistant MQTT config defaults and environment-based config assembly
+	- `config.rs`: Home Assistant MQTT config defaults and environment-based config assembly (service/node scoped, not tied to one device descriptor)
 	- `transport.rs`: MQTT client options and event-loop management
 	- `command.rs`: command route typing and command payload mapping helpers
 	- `payloads.rs` and `topics.rs`: Home Assistant payload and topic conventions
@@ -113,6 +113,10 @@ Responsibilities:
 - own adapter-specific connection configuration conventions (for example env-to-config mapping for HA MQTT)
 
 The adapter is replaceable. A device implementation should not need to know whether it is publishing through a Home Assistant MQTT model, Sparkplug, or another bus protocol.
+
+For adapters that multiplex multiple devices through one client session, availability may be
+modeled at the node or service level rather than per device. In that case, multiple discovered
+devices can share the same availability topic while keeping distinct discovery and state topics.
 
 ## Why one microservice per device
 

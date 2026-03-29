@@ -10,7 +10,7 @@ The protocol has three moving parts:
 
 1. **Config** — retained discovery payload telling HA what the entity is
 2. **State** — live value published whenever the entity changes
-3. **Availability** — retained online/offline signal for the device
+3. **Availability** — retained online/offline signal for the MQTT client session or node
 
 ---
 
@@ -48,12 +48,12 @@ hs/state/hs-node-dev/living-room-sensor-01/temperature
 ### Availability
 
 ```
-hs/availability/<node_id>/<device_id>
+hs/availability/<node_id>
 ```
 
 Example:
 ```
-hs/availability/hs-node-dev/living-room-sensor-01
+hs/availability/hs-node-dev
 ```
 
 ### Command (optional, writable entities only)
@@ -83,7 +83,7 @@ Publishing an empty payload (`""`) to the config topic removes the entity from H
   "device_class": "temperature",
   "unit_of_measurement": "°C",
   "state_topic": "hs/state/hs-node-dev/living-room-sensor-01/temperature",
-  "availability_topic": "hs/availability/hs-node-dev/living-room-sensor-01",
+  "availability_topic": "hs/availability/hs-node-dev",
   "payload_available": "online",
   "payload_not_available": "offline",
   "device": {
@@ -105,7 +105,7 @@ Publishing an empty payload (`""`) to the config topic removes the entity from H
   "state_topic": "hs/state/hs-node-dev/living-room-sensor-01/occupancy",
   "payload_on": "true",
   "payload_off": "false",
-  "availability_topic": "hs/availability/hs-node-dev/living-room-sensor-01",
+  "availability_topic": "hs/availability/hs-node-dev",
   "payload_available": "online",
   "payload_not_available": "offline",
   "device": {
@@ -127,7 +127,7 @@ Publishing an empty payload (`""`) to the config topic removes the entity from H
   "command_topic": "hs/command/hs-node-dev/my-switch-01/state",
   "payload_on": "ON",
   "payload_off": "OFF",
-  "availability_topic": "hs/availability/hs-node-dev/my-switch-01",
+  "availability_topic": "hs/availability/hs-node-dev",
   "payload_available": "online",
   "payload_not_available": "offline",
   "device": {
@@ -187,9 +187,13 @@ The availability topic carries a plain string payload.
 | last-will set to `offline`         | HA marks unavailable if MQTT connection drops |
 
 The MQTT client should:
-- set its **last-will** to `offline` on the availability topic before connecting
+- set its **last-will** to `offline` on the node availability topic before connecting
 - publish `online` (retained) immediately after connecting
 - publish `offline` (retained) on clean shutdown
+
+When one MQTT client represents multiple HA devices, those devices can all reference the same
+node availability topic. In that model, discovery remains per device and entity, while
+availability reflects whether the node or bridge process behind the client session is alive.
 
 ---
 
@@ -261,10 +265,10 @@ Initial implementation will focus on `sensor`, `binary_sensor`, and `switch`.
 ## Implementation checklist for hs-eventbus-mqtt-ha
 
 - [ ] MQTT client setup with configurable host/port/client-id
-- [ ] Last-will registration on availability topic before connect
-- [ ] Publish `online` to availability topic after connect (retained)
+- [ ] Last-will registration on node availability topic before connect
+- [ ] Publish `online` to node availability topic after connect (retained)
 - [ ] Publish config payload for each capability (retained, QoS 1)
 - [ ] Publish state updates (QoS 0 or 1)
 - [ ] Subscribe to command topics for writable entities
-- [ ] Publish `offline` to availability topic on clean shutdown (retained)
+- [ ] Publish `offline` to node availability topic on clean shutdown (retained)
 - [ ] Publish empty config payload to remove entities on deregister

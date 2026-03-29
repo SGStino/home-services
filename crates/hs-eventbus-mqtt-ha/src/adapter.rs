@@ -121,14 +121,14 @@ impl EventBusAdapter for HomeAssistantMqttAdapter {
     }
 
     async fn publish_availability(&self, availability: &AvailabilityMessage) -> Result<()> {
-        let topic = availability_topic(&self.config.node_id, &availability.device_id);
+        let topic = availability_topic(&self.config.node_id);
         let payload = availability_payload(&availability.status);
 
         self.client
             .publish(topic.clone(), QoS::AtLeastOnce, true, payload)
             .await?;
 
-        info!(topic = %topic, status = %payload, "published availability");
+        info!(topic = %topic, status = %payload, device_id = %availability.device_id, "published availability");
         Ok(())
     }
 }

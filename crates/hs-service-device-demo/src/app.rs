@@ -16,7 +16,7 @@ use crate::{
 pub async fn run() -> anyhow::Result<()> {
     let device = demo_device();
     let capabilities = demo_capabilities();
-    let config = HomeAssistantMqttConfig::from_env_for_device(&device, now_unix_ms());
+    let config = HomeAssistantMqttConfig::from_env(now_unix_ms());
 
     let adapter = HomeAssistantMqttAdapter::connect(config).await?;
 
