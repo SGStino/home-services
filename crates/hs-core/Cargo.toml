@@ -1,0 +1,18 @@
+[package]
+name = "hs-core"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+
+[dependencies]
+anyhow.workspace = true
+hs-contracts = { path = "../hs-contracts" }
+hs-eventbus-api = { path = "../hs-eventbus-api" }
+reqwest.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+tracing-opentelemetry.workspace = true
+opentelemetry-appender-tracing.workspace = true
+opentelemetry.workspace = true
+opentelemetry_sdk.workspace = true
+opentelemetry-otlp.workspace = true

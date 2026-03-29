@@ -1,0 +1,40 @@
+services:
+  workspace:
+    build:
+      context: ..
+      dockerfile: .devcontainer/Dockerfile
+    user: vscode
+    command: sleep infinity
+    working_dir: /workspaces/home-services
+    volumes:
+      - ..:/workspaces/home-services
+    environment:
+      MQTT_HOST: mosquitto
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
+    depends_on:
+      - mosquitto
+      - otel-collector
+      - lgtm
+
+  mosquitto:
+    image: docker.io/library/eclipse-mosquitto:2
+    ports:
+      - "1883:1883"
+      - "9001:9001"
+    volumes:
+      - ../infra/mosquitto/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
+
+  otel-collector:
+    image: docker.io/otel/opentelemetry-collector-contrib:0.122.1
+    command: ["--config=/etc/otelcol-contrib/config.yaml"]
+    ports:
+      - "4317:4317"
+      - "4318:4318"
+    volumes:
+      - ../infra/otel-collector/config.yaml:/etc/otelcol-contrib/config.yaml:ro
+
+  lgtm:
+    image: docker.io/grafana/otel-lgtm:latest
+    ports:
+      - "3000:3000"
+

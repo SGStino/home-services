@@ -1,0 +1,10 @@
+[package]
+name = "hs-eventbus-api"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+
+[dependencies]
+anyhow.workspace = true
+async-trait.workspace = true
+hs-contracts = { path = "../hs-contracts" }

@@ -1,0 +1,34 @@
+{
+  "name": "home-services",
+  "dockerComposeFile": [
+    "docker-compose.yml"
+  ],
+  "service": "workspace",
+  "runServices": [
+    "workspace",
+    "mosquitto",
+    "otel-collector",
+    "lgtm"
+  ],
+  "workspaceFolder": "/workspaces/home-services",
+  "shutdownAction": "stopCompose",
+  "remoteUser": "vscode",
+  "containerEnv": {
+    "CARGO_HOME": "/workspaces/home-services/.cargo-home"
+  },
+  "forwardPorts": [8080, 8081, 1883, 9001, 3000, 4317, 4318],
+  "postCreateCommand": "cargo fetch",
+  "customizations": {
+    "vscode": {
+      "settings": {
+        "terminal.integrated.defaultProfile.linux": "bash",
+        "rust-analyzer.check.command": "clippy"
+      },
+      "extensions": [
+        "rust-lang.rust-analyzer",
+        "tamasfe.even-better-toml",
+        "ms-azuretools.vscode-docker"
+      ]
+    }
+  }
+}
