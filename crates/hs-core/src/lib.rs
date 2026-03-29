@@ -3,7 +3,7 @@ use hs_contracts::{AvailabilityMessage, CapabilityDescriptor, DeviceDescriptor, 
 use hs_eventbus_api::EventBusAdapter;
 use opentelemetry::{global, metrics::{Counter, Histogram}, KeyValue};
 use std::{sync::OnceLock, time::Instant};
-use tracing::{info, info_span};
+use tracing::{debug, info, info_span, Instrument};
 
 pub mod telemetry;
 
@@ -31,14 +31,12 @@ where
         device: DeviceDescriptor,
         capabilities: Vec<CapabilityDescriptor>,
     ) -> Result<()> {
-        let span = info_span!(
+        let publish_span = info_span!(
             "hs_core.publish_discovery",
             service_id = %self.service_id,
             adapter = self.adapter.adapter_name(),
             device_id = %device.device_id,
         );
-        let _enter = span.enter();
-
         let started_at = Instant::now();
         let metrics = runtime_metrics();
         let adapter_name = self.adapter.adapter_name();
@@ -56,6 +54,7 @@ where
                 device,
                 capabilities,
             })
+            .instrument(publish_span)
             .await;
 
         let outcome = if result.is_ok() { "ok" } else { "error" };
@@ -74,14 +73,12 @@ where
     }
 
     pub async fn publish_availability(&self, availability: AvailabilityMessage) -> Result<()> {
-        let span = info_span!(
+        let publish_span = info_span!(
             "hs_core.publish_availability",
             service_id = %self.service_id,
             adapter = self.adapter.adapter_name(),
             device_id = %availability.device_id,
         );
-        let _enter = span.enter();
-
         let started_at = Instant::now();
         let metrics = runtime_metrics();
         let adapter_name = self.adapter.adapter_name();
@@ -93,7 +90,11 @@ where
             "publishing availability"
         );
 
-        let result = self.adapter.publish_availability(&availability).await;
+        let result = self
+            .adapter
+            .publish_availability(&availability)
+            .instrument(publish_span)
+            .await;
 
         let outcome = if result.is_ok() { "ok" } else { "error" };
         let attrs = [
@@ -111,20 +112,18 @@ where
     }
 
     pub async fn publish_state(&self, state: StateMessage) -> Result<()> {
-        let span = info_span!(
+        let publish_span = info_span!(
             "hs_core.publish_state",
             service_id = %self.service_id,
             adapter = self.adapter.adapter_name(),
             device_id = %state.device_id,
             capability_id = %state.capability_id,
         );
-        let _enter = span.enter();
-
         let started_at = Instant::now();
         let metrics = runtime_metrics();
         let adapter_name = self.adapter.adapter_name();
 
-        info!(
+        debug!(
             service_id = %self.service_id,
             adapter = adapter_name,
             device_id = %state.device_id,
@@ -132,7 +131,11 @@ where
             "publishing state"
         );
 
-        let result = self.adapter.publish_state(&state).await;
+        let result = self
+            .adapter
+            .publish_state(&state)
+            .instrument(publish_span)
+            .await;
 
         let outcome = if result.is_ok() { "ok" } else { "error" };
         let attrs = [

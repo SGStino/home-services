@@ -9,7 +9,7 @@ use hs_contracts::{
 use hs_eventbus_api::EventBusAdapter;
 use rumqttc::{AsyncClient, Event, LastWill, MqttOptions, Packet, QoS};
 use tokio::sync::{broadcast, RwLock};
-use tracing::{error, info, warn};
+use tracing::{debug, error, info, warn};
 
 use crate::{
     config::HomeAssistantMqttConfig,
@@ -149,7 +149,7 @@ impl EventBusAdapter for HomeAssistantMqttAdapter {
             .publish(topic.clone(), QoS::AtLeastOnce, false, payload)
             .await?;
 
-        info!(topic = %topic, "published state update");
+        debug!(topic = %topic, "published state update");
         Ok(())
     }
 

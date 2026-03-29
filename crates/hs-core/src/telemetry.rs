@@ -83,7 +83,7 @@ pub fn init(service_name: &str) -> Result<TelemetryGuard> {
         .context("failed to build OTLP span exporter")?;
 
     let tracer_provider = SdkTracerProvider::builder()
-        .with_batch_exporter(span_exporter)
+        .with_simple_exporter(span_exporter)
         .with_resource(resource.clone())
         .build();
 
@@ -99,7 +99,7 @@ pub fn init(service_name: &str) -> Result<TelemetryGuard> {
 
         Some(
             SdkLoggerProvider::builder()
-                .with_batch_exporter(log_exporter)
+                .with_simple_exporter(log_exporter)
                 .with_resource(resource.clone())
                 .build(),
         )

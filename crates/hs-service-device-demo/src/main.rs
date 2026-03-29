@@ -11,7 +11,7 @@ use tracing::info;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    let _telemetry = telemetry::init(env!("CARGO_PKG_NAME"))?;
+    let telemetry_guard = telemetry::init(env!("CARGO_PKG_NAME"))?;
 
     let device = DeviceDescriptor {
         service_id: "device-demo-living-room-node".to_string(),
@@ -92,6 +92,9 @@ async fn main() -> anyhow::Result<()> {
     let mut tick_index: u64 = 0;
 
     loop {
+        // Keep telemetry guard alive for the entire runtime so OTEL exporters stay active.
+        let _ = &telemetry_guard;
+
         tokio::select! {
             _ = tick.tick() => {
                 if !switch_on {
