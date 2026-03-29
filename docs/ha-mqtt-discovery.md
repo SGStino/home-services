@@ -83,6 +83,9 @@ Publishing an empty payload (`""`) to the config topic removes the entity from H
   "device_class": "temperature",
   "unit_of_measurement": "°C",
   "state_topic": "hs/state/hs-node-dev/living-room-sensor-01/temperature",
+  "value_template": "{{ value_json.value }}",
+  "json_attributes_topic": "hs/state/hs-node-dev/living-room-sensor-01/temperature",
+  "json_attributes_template": "{{ {'ts': value_json.ts} | tojson }}",
   "availability_topic": "hs/availability/hs-node-dev",
   "payload_available": "online",
   "payload_not_available": "offline",
@@ -103,6 +106,9 @@ Publishing an empty payload (`""`) to the config topic removes the entity from H
   "unique_id": "hs-node-dev_living-room-sensor-01_occupancy",
   "device_class": "occupancy",
   "state_topic": "hs/state/hs-node-dev/living-room-sensor-01/occupancy",
+  "value_template": "{{ value_json.value }}",
+  "json_attributes_topic": "hs/state/hs-node-dev/living-room-sensor-01/occupancy",
+  "json_attributes_template": "{{ {'ts': value_json.ts} | tojson }}",
   "payload_on": "true",
   "payload_off": "false",
   "availability_topic": "hs/availability/hs-node-dev",
@@ -124,6 +130,9 @@ Publishing an empty payload (`""`) to the config topic removes the entity from H
   "name": "Power",
   "unique_id": "hs-node-dev_my-switch-01_state",
   "state_topic": "hs/state/hs-node-dev/my-switch-01/state",
+  "value_template": "{{ value_json.value }}",
+  "json_attributes_topic": "hs/state/hs-node-dev/my-switch-01/state",
+  "json_attributes_template": "{{ {'ts': value_json.ts} | tojson }}",
   "command_topic": "hs/command/hs-node-dev/my-switch-01/state",
   "payload_on": "ON",
   "payload_off": "OFF",
@@ -148,6 +157,9 @@ Publishing an empty payload (`""`) to the config topic removes the entity from H
 | `name`                  | yes      | Human-readable entity name shown in HA                            |
 | `unique_id`             | yes      | Stable unique identifier. Must never change for the same entity.  |
 | `state_topic`           | yes      | MQTT topic HA subscribes to for live values                       |
+| `value_template`        | recommended | Extracts the entity state from the JSON state envelope         |
+| `json_attributes_topic` | recommended | Reuses the state topic so timestamp metadata becomes entity attributes |
+| `json_attributes_template` | optional | Explicitly selects which JSON fields become attributes (for example `ts`) |
 | `command_topic`         | no       | Only for writable entities (switches, lights, etc.)               |
 | `availability_topic`    | recommended | Topic HA monitors for online/offline                           |
 | `payload_available`     | no       | Payload meaning online, default `online`                          |
@@ -199,13 +211,24 @@ availability reflects whether the node or bridge process behind the client sessi
 
 ## State values
 
-State payloads are plain strings (not JSON objects).
+State payloads are JSON objects so protocol metadata can travel with the live value.
+Home Assistant reads the entity state via `value_template` and stores the remaining fields as attributes.
 
-| Entity type     | Expected payload          |
-|-----------------|---------------------------|
-| sensor          | numeric string e.g. `21.5` |
-| binary_sensor   | `true` / `false` (or `ON` / `OFF` depending on config) |
-| switch          | `ON` / `OFF`               |
+Example state payload:
+
+```json
+{
+  "value": 21.5,
+  "ts": 1742230400123
+}
+```
+
+| Field                  | Description                                           |
+|------------------------|-------------------------------------------------------|
+| `value`                | The entity state HA should treat as the live value    |
+| `ts`                   | Source observation timestamp in Unix milliseconds     |
+
+For button entities, no `state_topic` is published because HA models them as stateless actions.
 
 ---
 

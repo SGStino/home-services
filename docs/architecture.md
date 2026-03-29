@@ -252,8 +252,14 @@ For a Home Assistant MQTT adapter, the adapter is responsible for:
 
 - publishing retained discovery payloads
 - publishing device availability
-- publishing entity state topics
+- publishing entity state topics, including protocol metadata such as source observation timestamps when available
 - subscribing to command topics where relevant
+
+Current HA MQTT mapping detail:
+
+- state publishes use a JSON envelope with a `value` field plus protocol metadata fields such as `ts`
+- discovery payloads include a `value_template` so Home Assistant reads the entity state from `value`
+- the same state topic is reused as `json_attributes_topic`, and `json_attributes_template` explicitly maps `ts` into attributes without changing the canonical device contract
 
 For a Sparkplug adapter, the adapter is responsible for:
 

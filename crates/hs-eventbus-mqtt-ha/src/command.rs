@@ -18,7 +18,7 @@ pub fn supports_commands(kind: &CapabilityKind) -> bool {
 pub fn parse_command_payload(bytes: &[u8]) -> serde_json::Value {
     let payload_text = String::from_utf8(bytes.to_vec()).unwrap_or_default();
     serde_json::from_str::<serde_json::Value>(&payload_text)
-        .unwrap_or_else(|_| serde_json::Value::String(payload_text))
+        .unwrap_or(serde_json::Value::String(payload_text))
 }
 
 pub fn into_command_message(route: CommandRoute, payload: serde_json::Value) -> CommandMessage {

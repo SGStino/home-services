@@ -6,7 +6,8 @@ pub struct StateMessage {
     pub device_id: String,
     pub capability_id: String,
     pub value: Value,
-    pub observed_at_unix_ms: u64,
+    #[serde(alias = "observed_at_unix_ms")]
+    pub observed_ms: u64,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]

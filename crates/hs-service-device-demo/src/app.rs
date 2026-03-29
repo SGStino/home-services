@@ -57,7 +57,7 @@ impl DeviceServiceBehavior<HomeAssistantMqttAdapter> for DemoBehavior {
             device_id: device.device_id.clone(),
             capability_id: "power".to_string(),
             value: json!("OFF"),
-            observed_at_unix_ms: now_unix_ms(),
+            observed_ms: now_unix_ms(),
         }])
     }
 
@@ -77,7 +77,7 @@ impl DeviceServiceBehavior<HomeAssistantMqttAdapter> for DemoBehavior {
                 device_id: device.device_id.clone(),
                 capability_id: "temperature".to_string(),
                 value: json!(temperature),
-                observed_at_unix_ms: now_unix_ms(),
+                observed_ms: now_unix_ms(),
             })
             .await
     }
@@ -97,7 +97,7 @@ impl DeviceServiceBehavior<HomeAssistantMqttAdapter> for DemoBehavior {
                             device_id: device.device_id.clone(),
                             capability_id: "power".to_string(),
                             value: json!("ON"),
-                            observed_at_unix_ms: now_unix_ms(),
+                            observed_ms: now_unix_ms(),
                         })
                         .await?;
                     info!("switch turned ON");
@@ -108,7 +108,7 @@ impl DeviceServiceBehavior<HomeAssistantMqttAdapter> for DemoBehavior {
                             device_id: device.device_id.clone(),
                             capability_id: "power".to_string(),
                             value: json!("OFF"),
-                            observed_at_unix_ms: now_unix_ms(),
+                            observed_ms: now_unix_ms(),
                         })
                         .await?;
                     info!("switch turned OFF");
