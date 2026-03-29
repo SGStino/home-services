@@ -38,6 +38,13 @@ Current baseline module boundaries:
 	- `config.rs`: environment-driven device metadata plus ESPHome API endpoint and auth settings
 	- `esphome.rs`: ESPHome native API client, entity discovery, state decoding, and command forwarding
 	- `time.rs`: timestamp helper
+- `hs-service-device-tplink-hs110`
+	- `main.rs`: process entrypoint only
+	- `app.rs`: HS110 behavior implementation (poll + command handling) wired to shared lifecycle runner
+	- `config.rs`: environment-driven device metadata plus HS110 host/port/timeout settings
+	- `hs110_client.rs`: TP-Link HS110 request/response operations and snapshot modeling
+	- `tplink_protocol.rs`: TP-Link local framing and XOR cipher helpers
+	- `bootstrap.rs`, `command_payload.rs`, and `time.rs`: focused capability, command parsing, and timestamp helpers
 
 Guideline:
 

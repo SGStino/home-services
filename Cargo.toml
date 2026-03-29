@@ -6,6 +6,7 @@ members = [
     "crates/hs-eventbus-mqtt-ha",
     "crates/hs-service-device-demo",
     "crates/hs-service-device-esphome",
+    "crates/hs-service-device-tplink-hs110",
 ]
 resolver = "2"
 

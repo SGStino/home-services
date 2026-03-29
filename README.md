@@ -18,6 +18,7 @@ The current workspace has been reorganized around the architecture in `docs/arch
 - `crates/hs-eventbus-mqtt-ha`: Home Assistant over MQTT event bus adapter.
 - `crates/hs-service-device-demo`: a minimal demo device microservice composed from the shared crates.
 - `crates/hs-service-device-esphome`: ESPHome native API microservice that discovers ESPHome entities at runtime and republishes them through the canonical Home Assistant MQTT adapter.
+- `crates/hs-service-device-tplink-hs110`: TP-Link HS110 local-LAN microservice for relay control and realtime power metrics over the native TP-Link protocol.
 - `docs/architecture.md`: canonical architecture document.
 - `docker-compose.yml`: local Mosquitto broker, OpenTelemetry Collector, and Grafana LGTM stack for development.
 
@@ -129,6 +130,36 @@ export ESPHOME_API_PORT="6053"
 
 cargo run -p hs-service-device-esphome
 ```
+
+## Run the TP-Link HS110 service
+
+Set the HS110 endpoint and start. The service will read HS110 sysinfo and auto-fill
+device identity from the plug (alias/model/mac/deviceId) when `HS_DEVICE_*`
+overrides are not provided.
+
+```bash
+export HS110_HOST="192.168.2.107"
+export HS110_PORT="9999"
+
+cargo run -p hs-service-device-tplink-hs110
+```
+
+Optional timeout tuning:
+
+```bash
+export HS110_TIMEOUT_MS="3000"
+```
+
+Optional identity overrides (if you want fixed IDs/names instead of sysinfo-derived values):
+
+```bash
+export HS_SERVICE_ID="device-kitchen-plug"
+export HS_DEVICE_ID="tplink-kitchen-plug-01"
+export HS_DEVICE_NAME="Kitchen Plug"
+export HS_DEVICE_MODEL="HS110(FR)"
+export HS_DEVICE_MANUFACTURER="TP-Link"
+```
+
 ## Service ports
 
 - Mosquitto MQTT broker: `1883`
