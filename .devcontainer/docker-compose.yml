@@ -11,10 +11,15 @@ services:
     environment:
       MQTT_HOST: mosquitto
       OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
+      INFLUX_URL: http://influxdb:8086
+      INFLUX_ORG: home-services
+      INFLUX_BUCKET: home-services
+      INFLUX_TOKEN: dev-influx-token
     depends_on:
       - mosquitto
       - otel-collector
       - lgtm
+      - influxdb
 
   mosquitto:
     image: docker.io/library/eclipse-mosquitto:2
@@ -37,4 +42,21 @@ services:
     image: docker.io/grafana/otel-lgtm:latest
     ports:
       - "3000:3000"
+
+  influxdb:
+    image: docker.io/library/influxdb:2.7
+    ports:
+      - "8086:8086"
+    environment:
+      DOCKER_INFLUXDB_INIT_MODE: setup
+      DOCKER_INFLUXDB_INIT_USERNAME: dev
+      DOCKER_INFLUXDB_INIT_PASSWORD: devpassword
+      DOCKER_INFLUXDB_INIT_ORG: home-services
+      DOCKER_INFLUXDB_INIT_BUCKET: home-services
+      DOCKER_INFLUXDB_INIT_ADMIN_TOKEN: dev-influx-token
+    volumes:
+      - influxdb-data:/var/lib/influxdb2
+
+volumes:
+  influxdb-data:
 
