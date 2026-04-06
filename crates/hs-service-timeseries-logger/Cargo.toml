@@ -1,0 +1,15 @@
+[package]
+name = "hs-service-timeseries-logger"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+
+[dependencies]
+anyhow.workspace = true
+async-trait.workspace = true
+hs-eventbus-api = { path = "../hs-eventbus-api" }
+hs-eventbus-mqtt-ha = { path = "../hs-eventbus-mqtt-ha" }
+hs-logger-core = { path = "../hs-logger-core" }
+tokio.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
