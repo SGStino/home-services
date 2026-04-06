@@ -1,6 +1,7 @@
 pub mod core_metadata;
 pub mod datapoint;
 pub mod logger_config;
+mod metrics;
 pub mod point_writer;
 
 pub use core_metadata::CoreMetadata;

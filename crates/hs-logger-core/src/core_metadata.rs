@@ -1,5 +1,6 @@
 use std::collections::{BTreeMap, HashMap};
 use std::sync::Arc;
+use std::time::Instant;
 
 use anyhow::Result;
 use async_trait::async_trait;
@@ -7,11 +8,13 @@ use hs_device_contracts::{
     AvailabilityMessage, CapabilityDescriptor, CapabilityKind, DiscoveryMessage, StateMessage,
 };
 use hs_eventbus_api::{DiscoveryKey, EventProcessor};
+use opentelemetry::KeyValue;
 use serde_json::Value;
 use tokio::sync::RwLock;
 use tracing::{debug, warn};
 
 use crate::datapoint::{DataPoint, DataPointField};
+use crate::metrics::logger_metrics;
 use crate::{LoggerConfig, PointWriter};
 
 #[derive(Clone)]
@@ -81,6 +84,13 @@ impl CoreMetadata {
         let fields = fields_from_state_value(&state.value, &metadata.capability_kind);
 
         if fields.is_empty() {
+            logger_metrics().dropped_events_total.add(
+                1,
+                &[
+                    KeyValue::new("event.kind", "state"),
+                    KeyValue::new("reason", "unsupported_fields"),
+                ],
+            );
             debug!(
                 device_id = %state.device_id,
                 capability_id = %state.capability_id,
@@ -96,7 +106,25 @@ impl CoreMetadata {
             observed_ms: state.observed_ms,
         };
 
-        self.writer.write_points(vec![point]).await
+        let point_count = 1;
+        let started_at = Instant::now();
+        let result = self.writer.write_points(vec![point]).await;
+        let elapsed_seconds = started_at.elapsed().as_secs_f64();
+
+        let outcome = if result.is_ok() { "ok" } else { "error" };
+        logger_metrics()
+            .write_batches_total
+            .add(1, &[KeyValue::new("outcome", outcome)]);
+        logger_metrics().write_points_total.add(
+            point_count,
+            &[KeyValue::new("outcome", outcome)],
+        );
+        logger_metrics().write_latency_seconds.record(
+            elapsed_seconds,
+            &[KeyValue::new("outcome", outcome)],
+        );
+
+        result
     }
 
     async fn write_availability_points(&self, availability: AvailabilityMessage) -> Result<()> {
@@ -119,6 +147,13 @@ impl CoreMetadata {
         drop(entities);
 
         if matching.is_empty() {
+            logger_metrics().dropped_events_total.add(
+                1,
+                &[
+                    KeyValue::new("event.kind", "availability"),
+                    KeyValue::new("reason", "missing_metadata"),
+                ],
+            );
             debug!(
                 availability_id = %availability.device_id,
                 "dropping availability sample without active metadata"
@@ -126,6 +161,7 @@ impl CoreMetadata {
             return Ok(());
         }
 
+        let point_count = matching.len() as u64;
         let points = matching
             .into_iter()
             .map(|entity| DataPoint {
@@ -139,14 +175,42 @@ impl CoreMetadata {
             })
             .collect();
 
-        self.writer.write_points(points).await
+        let started_at = Instant::now();
+        let result = self.writer.write_points(points).await;
+        let elapsed_seconds = started_at.elapsed().as_secs_f64();
+        let outcome = if result.is_ok() { "ok" } else { "error" };
+        logger_metrics()
+            .write_batches_total
+            .add(1, &[KeyValue::new("outcome", outcome)]);
+        logger_metrics().write_points_total.add(
+            point_count,
+            &[KeyValue::new("outcome", outcome)],
+        );
+        logger_metrics().write_latency_seconds.record(
+            elapsed_seconds,
+            &[KeyValue::new("outcome", outcome)],
+        );
+
+        result
     }
 }
 
 #[async_trait]
 impl EventProcessor for CoreMetadata {
     async fn on_discovery(&self, key: DiscoveryKey, event: DiscoveryMessage) {
+        logger_metrics().ingest_events_total.add(
+            1,
+            &[KeyValue::new("event.kind", "discovery")],
+        );
+
         if event.capabilities.is_empty() {
+            logger_metrics().dropped_events_total.add(
+                1,
+                &[
+                    KeyValue::new("event.kind", "discovery"),
+                    KeyValue::new("reason", "no_capabilities"),
+                ],
+            );
             warn!("discovery event ignored because it had no capabilities");
             return;
         }
@@ -178,6 +242,11 @@ impl EventProcessor for CoreMetadata {
     }
 
     async fn on_tombstone(&self, key: DiscoveryKey) {
+        logger_metrics().ingest_events_total.add(
+            1,
+            &[KeyValue::new("event.kind", "tombstone")],
+        );
+
         let mut entities = self.entities.write().await;
         let removed = entities.remove(&key);
         drop(entities);
@@ -196,10 +265,22 @@ impl EventProcessor for CoreMetadata {
     }
 
     async fn on_state(&self, state: StateMessage) {
+        logger_metrics().ingest_events_total.add(
+            1,
+            &[KeyValue::new("event.kind", "state")],
+        );
+
         let index_key = (state.device_id.clone(), state.capability_id.clone());
         let discovery_key = { self.state_index.read().await.get(&index_key).cloned() };
 
         let Some(discovery_key) = discovery_key else {
+            logger_metrics().dropped_events_total.add(
+                1,
+                &[
+                    KeyValue::new("event.kind", "state"),
+                    KeyValue::new("reason", "missing_metadata"),
+                ],
+            );
             debug!(
                 device_id = %state.device_id,
                 capability_id = %state.capability_id,
@@ -210,6 +291,13 @@ impl EventProcessor for CoreMetadata {
 
         let metadata = { self.entities.read().await.get(&discovery_key).cloned() };
         let Some(metadata) = metadata else {
+            logger_metrics().dropped_events_total.add(
+                1,
+                &[
+                    KeyValue::new("event.kind", "state"),
+                    KeyValue::new("reason", "metadata_key_missing"),
+                ],
+            );
             debug!(
                 device_id = %state.device_id,
                 capability_id = %state.capability_id,
@@ -224,6 +312,11 @@ impl EventProcessor for CoreMetadata {
     }
 
     async fn on_availability(&self, availability: AvailabilityMessage) {
+        logger_metrics().ingest_events_total.add(
+            1,
+            &[KeyValue::new("event.kind", "availability")],
+        );
+
         if let Err(err) = self.write_availability_points(availability).await {
             warn!(error = %err, "failed to write availability data point");
         }

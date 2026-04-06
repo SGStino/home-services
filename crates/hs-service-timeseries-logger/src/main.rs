@@ -1,4 +1,5 @@
 mod app;
+mod influx_writer;
 mod time;
 mod writer;
 
