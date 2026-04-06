@@ -1,10 +1,10 @@
 use anyhow::Result;
 use async_trait::async_trait;
-use hs_contracts::{
+use hs_device_contracts::{
     AvailabilityMessage, CapabilityDescriptor, CommandMessage, DeviceDescriptor, DiscoveryMessage,
     StateMessage,
 };
-use hs_eventbus_api::EventBusAdapter;
+use hs_eventbus_api::{CommandSubscriber, EventBusAdapter};
 use opentelemetry::KeyValue;
 use rumqttc::{AsyncClient, QoS};
 use tokio::sync::broadcast;
@@ -20,14 +20,14 @@ use crate::{
 };
 
 #[derive(Clone)]
-pub struct HomeAssistantMqttAdapter {
+pub struct HomeAssistantMqttPublishAdapter {
     config: HomeAssistantMqttConfig,
     client: AsyncClient,
     command_routes: CommandRoutes,
     commands_tx: broadcast::Sender<CommandMessage>,
 }
 
-impl HomeAssistantMqttAdapter {
+impl HomeAssistantMqttPublishAdapter {
     pub async fn connect(config: HomeAssistantMqttConfig) -> Result<Self> {
         let (client, event_loop) = create_client(&config);
         let routes: CommandRoutes =
@@ -80,7 +80,40 @@ impl HomeAssistantMqttAdapter {
 }
 
 #[async_trait]
-impl EventBusAdapter for HomeAssistantMqttAdapter {
+impl CommandSubscriber for HomeAssistantMqttPublishAdapter {
+    async fn subscribe_device_commands(
+        &self,
+        device: &DeviceDescriptor,
+        capabilities: &[CapabilityDescriptor],
+    ) -> Result<broadcast::Receiver<CommandMessage>> {
+        for capability in capabilities {
+            if !supports_commands(&capability.kind) {
+                continue;
+            }
+
+            let topic = command_topic(
+                &self.config.node_id,
+                &device.device_id,
+                &capability.capability_id,
+            );
+            self.client
+                .subscribe(topic.clone(), QoS::AtLeastOnce)
+                .await?;
+            self.command_routes.write().await.insert(
+                topic,
+                CommandRoute {
+                    device_id: device.device_id.clone(),
+                    capability_id: capability.capability_id.clone(),
+                },
+            );
+        }
+
+        Ok(self.commands_tx.subscribe())
+    }
+}
+
+#[async_trait]
+impl EventBusAdapter for HomeAssistantMqttPublishAdapter {
     fn adapter_name(&self) -> &'static str {
         "mqtt-home-assistant"
     }

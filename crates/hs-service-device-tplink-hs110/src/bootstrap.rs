@@ -1,4 +1,4 @@
-use hs_contracts::{
+use hs_device_contracts::{
     sensor_class, CapabilityDescriptor, CapabilityKind, DeviceClass,
 };
 

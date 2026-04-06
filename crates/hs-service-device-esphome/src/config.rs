@@ -1,6 +1,6 @@
 use std::env;
 
-use hs_contracts::DeviceDescriptor;
+use hs_device_contracts::DeviceDescriptor;
 use hs_eventbus_mqtt_ha::HomeAssistantMqttConfig;
 
 #[derive(Clone)]

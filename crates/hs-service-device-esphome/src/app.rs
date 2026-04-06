@@ -2,8 +2,8 @@ use std::time::Duration;
 
 use anyhow::Result;
 use async_trait::async_trait;
-use hs_contracts::{CommandMessage, DeviceDescriptor, StateMessage};
-use hs_core::{run_device_service, DeviceRuntime, DeviceServiceBehavior, ServiceDirective};
+use hs_device_contracts::{CommandMessage, DeviceDescriptor, StateMessage};
+use hs_device_core::{run_device_service, DeviceRuntime, DeviceServiceBehavior, ServiceDirective};
 use hs_eventbus_mqtt_ha::HomeAssistantMqttAdapter;
 use tracing::{info, warn};
 

@@ -1,4 +1,4 @@
-use hs_contracts::{
+use hs_device_contracts::{
     Availability, CapabilityDescriptor, CapabilityKind, DiscoveryMessage, StateMessage,
 };
 use serde_json::{json, Value};
@@ -101,7 +101,7 @@ pub fn state_payload(state: &StateMessage) -> String {
 #[cfg(test)]
 mod tests {
     use super::{discovery_payload, state_payload};
-    use hs_contracts::{
+    use hs_device_contracts::{
         sensor_class, CapabilityDescriptor, CapabilityKind, DeviceClass, DeviceDescriptor,
         DiscoveryMessage, StateMessage,
     };

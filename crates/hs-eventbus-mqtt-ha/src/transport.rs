@@ -1,6 +1,6 @@
 use std::time::Duration;
 
-use hs_contracts::Availability;
+use hs_device_contracts::Availability;
 use rumqttc::{AsyncClient, Event, EventLoop, LastWill, MqttOptions, Packet, QoS};
 use tokio::sync::broadcast;
 use tracing::{error, warn};
@@ -38,7 +38,7 @@ pub fn create_client(config: &HomeAssistantMqttConfig) -> (AsyncClient, EventLoo
 pub fn spawn_command_loop(
     mut event_loop: EventLoop,
     routes: CommandRoutes,
-    commands_tx: broadcast::Sender<hs_contracts::CommandMessage>,
+    commands_tx: broadcast::Sender<hs_device_contracts::CommandMessage>,
 ) {
     tokio::spawn(async move {
         loop {

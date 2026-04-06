@@ -1,5 +1,5 @@
 use anyhow::Result;
-use hs_contracts::{
+use hs_device_contracts::{
     AvailabilityMessage, CapabilityDescriptor, DeviceDescriptor, DiscoveryMessage, StateMessage,
 };
 use hs_eventbus_api::EventBusAdapter;

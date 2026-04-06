@@ -1,8 +1,8 @@
 use std::time::Duration;
 
 use async_trait::async_trait;
-use hs_contracts::{CommandMessage, DeviceDescriptor, StateMessage};
-use hs_core::{run_device_service, DeviceRuntime, DeviceServiceBehavior, ServiceDirective};
+use hs_device_contracts::{CommandMessage, DeviceDescriptor, StateMessage};
+use hs_device_core::{run_device_service, DeviceRuntime, DeviceServiceBehavior, ServiceDirective};
 use hs_eventbus_mqtt_ha::{HomeAssistantMqttAdapter, HomeAssistantMqttConfig};
 use serde_json::json;
 use tracing::info;

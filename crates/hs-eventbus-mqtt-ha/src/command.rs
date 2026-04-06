@@ -1,6 +1,6 @@
 use std::{collections::HashMap, sync::Arc};
 
-use hs_contracts::{CapabilityKind, CommandMessage};
+use hs_device_contracts::{CapabilityKind, CommandMessage};
 use tokio::sync::RwLock;
 
 #[derive(Clone, Debug)]

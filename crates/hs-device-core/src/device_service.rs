@@ -2,7 +2,7 @@ use std::time::Duration;
 
 use anyhow::Result;
 use async_trait::async_trait;
-use hs_contracts::{
+use hs_device_contracts::{
     Availability, AvailabilityMessage, CapabilityDescriptor, CommandMessage, DeviceDescriptor,
     StateMessage,
 };

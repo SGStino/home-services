@@ -9,7 +9,7 @@ use esphome_native_api::{
         SwitchCommandRequest,
     },
 };
-use hs_contracts::{CapabilityDescriptor, CapabilityKind, CommandMessage, DeviceClass};
+use hs_device_contracts::{CapabilityDescriptor, CapabilityKind, CommandMessage, DeviceClass};
 use prost::{decode_length_delimiter, encode_length_delimiter};
 use serde_json::{json, Value};
 use tokio::{

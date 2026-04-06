@@ -1,4 +1,4 @@
-use hs_contracts::{CapabilityDescriptor, CapabilityKind};
+use hs_device_contracts::{CapabilityDescriptor, CapabilityKind};
 
 pub fn command_topic(node_id: &str, device_id: &str, capability_id: &str) -> String {
     format!(
