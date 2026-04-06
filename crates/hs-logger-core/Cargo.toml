@@ -1,5 +1,5 @@
 [package]
-name = "hs-service-device-tplink-hs110"
+name = "hs-logger-core"
 edition.workspace = true
 version.workspace = true
 license.workspace = true
@@ -8,8 +8,8 @@ license.workspace = true
 anyhow.workspace = true
 async-trait.workspace = true
 hs-device-contracts = { path = "../hs-device-contracts" }
-hs-device-core = { path = "../hs-device-core" }
-hs-eventbus-mqtt-ha = { path = "../hs-eventbus-mqtt-ha" }
+hs-eventbus-api = { path = "../hs-eventbus-api" }
+serde.workspace = true
 serde_json.workspace = true
 tokio.workspace = true
 tracing.workspace = true

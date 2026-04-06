@@ -1,9 +1,10 @@
 [workspace]
 members = [
-    "crates/hs-core",
-    "crates/hs-contracts",
+    "crates/hs-device-core",
+    "crates/hs-device-contracts",
     "crates/hs-eventbus-api",
     "crates/hs-eventbus-mqtt-ha",
+    "crates/hs-logger-core",
     "crates/hs-service-device-demo",
     "crates/hs-service-device-esphome",
     "crates/hs-service-device-tplink-hs110",

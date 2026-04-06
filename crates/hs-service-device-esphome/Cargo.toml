@@ -8,8 +8,8 @@ license.workspace = true
 anyhow.workspace = true
 async-trait.workspace = true
 esphome-native-api.workspace = true
-hs-contracts = { path = "../hs-contracts" }
-hs-core = { path = "../hs-core" }
+hs-device-contracts = { path = "../hs-device-contracts" }
+hs-device-core = { path = "../hs-device-core" }
 hs-eventbus-mqtt-ha = { path = "../hs-eventbus-mqtt-ha" }
 prost = "0.13.5"
 serde_json.workspace = true
