@@ -1,6 +1,7 @@
 use std::collections::{BTreeMap, HashMap};
 use std::sync::Arc;
 use std::time::Instant;
+use std::time::{SystemTime, UNIX_EPOCH};
 
 use anyhow::Result;
 use async_trait::async_trait;
@@ -162,16 +163,22 @@ impl CoreMetadata {
         }
 
         let point_count = matching.len() as u64;
+        let observed_ms = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_millis() as u64;
         let points = matching
             .into_iter()
-            .map(|entity| DataPoint {
-                measurement: "availability".to_string(),
-                tags: self.filter_tags(&entity.metadata),
-                fields: BTreeMap::from([(
-                    "status".to_string(),
-                    DataPointField::Text(availability_status(&availability.status).to_string()),
-                )]),
-                observed_ms: 0,
+            .map(|entity| {
+                DataPoint {
+                    measurement: "availability".to_string(),
+                    tags: self.filter_tags(&entity.metadata),
+                    fields: BTreeMap::from([(
+                        "value_num".to_string(),
+                        DataPointField::Number(availability_code(&availability.status) as f64),
+                    )]),
+                    observed_ms,
+                }
             })
             .collect();
 
@@ -367,7 +374,6 @@ fn fields_from_state_value(
         CapabilityKind::Switch | CapabilityKind::Button => {
             if let Some(v) = parse_bool_like(value) {
                 fields.insert("value_bool".to_string(), DataPointField::Bool(v));
-                fields.insert("value_num".to_string(), DataPointField::Number(if v { 1.0 } else { 0.0 }));
                 return fields;
             }
         }
@@ -404,10 +410,10 @@ fn parse_bool_like(value: &Value) -> Option<bool> {
     }
 }
 
-fn availability_status(status: &hs_device_contracts::Availability) -> &'static str {
+fn availability_code(status: &hs_device_contracts::Availability) -> u8 {
     match status {
-        hs_device_contracts::Availability::Online => "online",
-        hs_device_contracts::Availability::Offline => "offline",
-        hs_device_contracts::Availability::Degraded => "degraded",
+        hs_device_contracts::Availability::Offline => 0,
+        hs_device_contracts::Availability::Degraded => 1,
+        hs_device_contracts::Availability::Online => 2,
     }
 }

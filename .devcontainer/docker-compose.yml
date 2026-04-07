@@ -60,9 +60,3 @@ services:
       DOCKER_INFLUXDB_INIT_ORG: home-services
       DOCKER_INFLUXDB_INIT_BUCKET: home-services
       DOCKER_INFLUXDB_INIT_ADMIN_TOKEN: dev-influx-token
-    volumes:
-      - influxdb-data:/var/lib/influxdb2
-
-volumes:
-  influxdb-data:
-
