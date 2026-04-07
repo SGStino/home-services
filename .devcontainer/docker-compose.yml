@@ -40,8 +40,12 @@ services:
 
   lgtm:
     image: docker.io/grafana/otel-lgtm:latest
+    depends_on:
+      - influxdb
     ports:
       - "3000:3000"
+    volumes:
+      - ../infra/grafana/provisioning:/etc/grafana/provisioning:ro
 
   influxdb:
     image: docker.io/library/influxdb:2.7

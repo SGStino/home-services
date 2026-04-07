@@ -8,7 +8,8 @@
     "workspace",
     "mosquitto",
     "otel-collector",
-    "lgtm"
+    "lgtm",
+    "influxdb"
   ],
   "workspaceFolder": "/workspaces/home-services",
   "shutdownAction": "stopCompose",

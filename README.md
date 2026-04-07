@@ -20,7 +20,7 @@ The current workspace has been reorganized around the architecture in `docs/arch
 - `crates/hs-service-device-esphome`: ESPHome native API microservice that discovers ESPHome entities at runtime and republishes them through the canonical Home Assistant MQTT adapter.
 - `crates/hs-service-device-tplink-hs110`: TP-Link HS110 local-LAN microservice for relay control and realtime power metrics over the native TP-Link protocol.
 - `docs/architecture.md`: canonical architecture document.
-- `docker-compose.yml`: local Mosquitto broker, OpenTelemetry Collector, and Grafana LGTM stack for development.
+- `.devcontainer/docker-compose.yml`: local Mosquitto broker, OpenTelemetry Collector, Grafana LGTM, and InfluxDB for development.
 
 ## Current status
 
@@ -49,7 +49,7 @@ The workspace includes a dev container under `.devcontainer/`.
 What it does:
 
 - builds a Rust development container with the toolchain and common native dependencies
-- starts Mosquitto, an OpenTelemetry Collector, and Grafana LGTM as sidecar services inside the same Compose project
+- starts Mosquitto, an OpenTelemetry Collector, Grafana LGTM, and InfluxDB as sidecar services inside the same Compose project
 - forwards the API and broker ports back to the host editor
 - caches Cargo registry, git dependencies, and the workspace `target/` directory across rebuilds
 
@@ -92,14 +92,17 @@ Inside the dev container:
 
 - the MQTT broker is reachable as `mosquitto:1883`
 - the OTLP HTTP endpoint is reachable as `http://otel-collector:4318`
+- InfluxDB is reachable as `http://influxdb:8086`
 - Grafana is available at `http://localhost:3000` (`admin` / `admin`)
+- Grafana auto-provisions an `InfluxDB` datasource (Flux, org/bucket `home-services`)
+- Grafana auto-provisions the dashboard `Home Services / Demo Service Overview`
 
 ## Run locally without the dev container
 
-1. Start the MQTT broker:
+1. Start the local infrastructure:
 
    ```powershell
-   podman-compose up -d mosquitto otel-collector lgtm
+   podman-compose -f .devcontainer/docker-compose.yml up -d mosquitto otel-collector lgtm influxdb
    ```
 
 2. Start the demo device service:
@@ -115,6 +118,8 @@ Inside the dev container:
    ```powershell
    Start-Process http://127.0.0.1:3000
    ```
+
+4. Open dashboard `Home Services / Demo Service Overview` to inspect demo temperature, switch, and availability data from InfluxDB.
 
 ## Run the ESPHome native API service
 
@@ -167,6 +172,7 @@ export HS_DEVICE_MANUFACTURER="TP-Link"
 - OTLP gRPC receiver (collector): `4317`
 - OTLP HTTP receiver (collector): `4318`
 - Grafana LGTM UI: `3000`
+- InfluxDB HTTP API: `8086`
 
 ## Next design increments
 
