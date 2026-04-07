@@ -184,7 +184,7 @@
             "type": "influxdb",
             "uid": "hs_influxdb_flux"
           },
-          "query": "from(bucket: \"home-services\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"switch\")\n  |> filter(fn: (r) => r.device_id == \"${device_id}\")\n  |> filter(fn: (r) => r.capability_id == \"power\")\n  |> filter(fn: (r) => r._field == \"value_bool\")\n  |> aggregateWindow(every: v.windowPeriod, fn: last, createEmpty: false)\n  |> yield(name: \"power\")",
+          "query": "from(bucket: \"home-services\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"switch\")\n  |> filter(fn: (r) => r.device_id == \"${device_id}\")\n  |> filter(fn: (r) => r.capability_id == \"power\")\n  |> filter(fn: (r) => r._field == \"value\")\n  |> aggregateWindow(every: v.windowPeriod, fn: last, createEmpty: false)\n  |> yield(name: \"power\")",
           "refId": "A"
         }
       ],
@@ -267,7 +267,7 @@
             "type": "influxdb",
             "uid": "hs_influxdb_flux"
           },
-          "query": "from(bucket: \"home-services\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"availability\")\n  |> filter(fn: (r) => r.node_id == \"${node_id}\")\n  |> filter(fn: (r) => r._field == \"value_num\")\n  |> group(columns: [\"node_id\"])\n  |> aggregateWindow(every: v.windowPeriod, fn: last, createEmpty: false)\n  |> yield(name: \"availability\")",
+          "query": "from(bucket: \"home-services\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"availability\")\n  |> filter(fn: (r) => r.node_id == \"${node_id}\")\n  |> filter(fn: (r) => r._field == \"value\")\n  |> group(columns: [\"node_id\"])\n  |> aggregateWindow(every: v.windowPeriod, fn: last, createEmpty: false)\n  |> yield(name: \"availability\")",
           "refId": "A"
         }
       ],

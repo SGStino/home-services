@@ -174,7 +174,7 @@ impl CoreMetadata {
                     measurement: "availability".to_string(),
                     tags: self.filter_tags(&entity.metadata),
                     fields: BTreeMap::from([(
-                        "value_num".to_string(),
+                        "value".to_string(),
                         DataPointField::Number(availability_code(&availability.status) as f64),
                     )]),
                     observed_ms,
@@ -373,7 +373,7 @@ fn fields_from_state_value(
     match kind {
         CapabilityKind::Switch | CapabilityKind::Button => {
             if let Some(v) = parse_bool_like(value) {
-                fields.insert("value_bool".to_string(), DataPointField::Bool(v));
+                fields.insert("value".to_string(), DataPointField::Bool(v));
                 return fields;
             }
         }
@@ -386,7 +386,7 @@ fn fields_from_state_value(
     }
 
     if let Some(v) = parse_bool_like(value) {
-        fields.insert("value_bool".to_string(), DataPointField::Bool(v));
+        fields.insert("value".to_string(), DataPointField::Bool(v));
         return fields;
     }
 
