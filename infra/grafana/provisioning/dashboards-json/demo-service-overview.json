@@ -24,7 +24,7 @@
     {
       "datasource": {
         "type": "influxdb",
-        "uid": "influxdb"
+        "uid": "hs_influxdb_flux"
       },
       "fieldConfig": {
         "defaults": {
@@ -104,7 +104,7 @@
         {
           "datasource": {
             "type": "influxdb",
-            "uid": "influxdb"
+            "uid": "hs_influxdb_flux"
           },
           "query": "from(bucket: \"home-services\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"sensor\")\n  |> filter(fn: (r) => r.device_id == \"${device_id}\")\n  |> filter(fn: (r) => r.capability_id == \"temperature\")\n  |> filter(fn: (r) => r._field == \"value_num\")\n  |> aggregateWindow(every: v.windowPeriod, fn: mean, createEmpty: false)\n  |> yield(name: \"temperature\")",
           "refId": "A"
@@ -116,7 +116,7 @@
     {
       "datasource": {
         "type": "influxdb",
-        "uid": "influxdb"
+        "uid": "hs_influxdb_flux"
       },
       "fieldConfig": {
         "defaults": {
@@ -126,12 +126,12 @@
           "mappings": [
             {
               "options": {
-                "false": {
+                "0": {
                   "color": "red",
                   "index": 1,
                   "text": "OFF"
                 },
-                "true": {
+                "1": {
                   "color": "green",
                   "index": 0,
                   "text": "ON"
@@ -181,9 +181,9 @@
         {
           "datasource": {
             "type": "influxdb",
-            "uid": "influxdb"
+            "uid": "hs_influxdb_flux"
           },
-          "query": "from(bucket: \"home-services\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"switch\")\n  |> filter(fn: (r) => r.device_id == \"${device_id}\")\n  |> filter(fn: (r) => r.capability_id == \"power\")\n  |> filter(fn: (r) => r._field == \"value_bool\")\n  |> last()",
+          "query": "from(bucket: \"home-services\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"switch\")\n  |> filter(fn: (r) => r.device_id == \"${device_id}\")\n  |> filter(fn: (r) => r.capability_id == \"power\")\n  |> filter(fn: (r) => r._field == \"value_num\")\n  |> last()",
           "refId": "A"
         }
       ],
@@ -193,7 +193,7 @@
     {
       "datasource": {
         "type": "influxdb",
-        "uid": "influxdb"
+        "uid": "hs_influxdb_flux"
       },
       "fieldConfig": {
         "defaults": {
@@ -203,12 +203,12 @@
           "mappings": [
             {
               "options": {
-                "offline": {
+                "0": {
                   "color": "red",
                   "index": 1,
-                  "text": "offline"
+                  "text": "not online"
                 },
-                "online": {
+                "1": {
                   "color": "green",
                   "index": 0,
                   "text": "online"
@@ -258,19 +258,19 @@
         {
           "datasource": {
             "type": "influxdb",
-            "uid": "influxdb"
+            "uid": "hs_influxdb_flux"
           },
-          "query": "from(bucket: \"home-services\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"availability\")\n  |> filter(fn: (r) => r.device_id == \"${device_id}\")\n  |> filter(fn: (r) => r._field == \"status\")\n  |> last()",
+          "query": "from(bucket: \"home-services\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"availability\")\n  |> filter(fn: (r) => r.node_id == \"${node_id}\")\n  |> filter(fn: (r) => r._field == \"value_num\")\n  |> last()",
           "refId": "A"
         }
       ],
-      "title": "Availability",
+      "title": "Node Availability",
       "type": "stat"
     },
     {
       "datasource": {
         "type": "influxdb",
-        "uid": "influxdb"
+        "uid": "hs_influxdb_flux"
       },
       "fieldConfig": {
         "defaults": {
@@ -306,7 +306,7 @@
         {
           "datasource": {
             "type": "influxdb",
-            "uid": "influxdb"
+            "uid": "hs_influxdb_flux"
           },
           "query": "from(bucket: \"home-services\")\n  |> range(start: -15m)\n  |> filter(fn: (r) => r._measurement == \"sensor\")\n  |> filter(fn: (r) => r.device_id == \"${device_id}\")\n  |> filter(fn: (r) => r._field == \"value_num\")\n  |> keep(columns: [\"_time\", \"capability_id\", \"_value\", \"unit\"])\n  |> sort(columns: [\"_time\"], desc: true)\n  |> limit(n: 30)",
           "refId": "A"
@@ -328,8 +328,8 @@
       {
         "current": {
           "selected": true,
-          "text": "living-room-node-01",
-          "value": "living-room-node-01"
+          "text": "living_room_node_01",
+          "value": "living_room_node_01"
         },
         "hide": 0,
         "label": "Device ID",
@@ -337,11 +337,31 @@
         "options": [
           {
             "selected": true,
-            "text": "living-room-node-01",
-            "value": "living-room-node-01"
+            "text": "living_room_node_01",
+            "value": "living_room_node_01"
           }
         ],
-        "query": "living-room-node-01",
+        "query": "living_room_node_01",
+        "skipUrlSync": false,
+        "type": "custom"
+      },
+      {
+        "current": {
+          "selected": true,
+          "text": "hs_node_dev",
+          "value": "hs_node_dev"
+        },
+        "hide": 0,
+        "label": "Node ID",
+        "name": "node_id",
+        "options": [
+          {
+            "selected": true,
+            "text": "hs_node_dev",
+            "value": "hs_node_dev"
+          }
+        ],
+        "query": "hs_node_dev",
         "skipUrlSync": false,
         "type": "custom"
       }
