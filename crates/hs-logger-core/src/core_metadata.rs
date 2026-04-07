@@ -381,7 +381,7 @@ fn fields_from_state_value(
     }
 
     if let Some(num) = value.as_f64() {
-        fields.insert("value_num".to_string(), DataPointField::Number(num));
+        fields.insert("value".to_string(), DataPointField::Number(num));
         return fields;
     }
 
@@ -391,7 +391,7 @@ fn fields_from_state_value(
     }
 
     if let Some(text) = value.as_str() {
-        fields.insert("value_text".to_string(), DataPointField::Text(text.to_string()));
+        fields.insert("value".to_string(), DataPointField::Text(text.to_string()));
     }
 
     fields
