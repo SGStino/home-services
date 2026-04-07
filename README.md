@@ -94,7 +94,7 @@ Inside the dev container:
 - the OTLP HTTP endpoint is reachable as `http://otel-collector:4318`
 - InfluxDB is reachable as `http://influxdb:8086`
 - Grafana is available at `http://localhost:3000` (`admin` / `admin`)
-- Grafana auto-provisions an `InfluxDB` datasource (Flux, org/bucket `home-services`)
+- Grafana auto-provisions `InfluxDB` (Flux) and `InfluxDB InfluxQL` datasources
 - Grafana auto-provisions the dashboard `Home Services / Demo Service Overview`
 
 ## Run locally without the dev container

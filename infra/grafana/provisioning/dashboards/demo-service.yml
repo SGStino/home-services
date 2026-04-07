@@ -8,4 +8,4 @@ providers:
     disableDeletion: false
     editable: true
     options:
-      path: /etc/grafana/provisioning/dashboards-json
+      path: /otel-lgtm/grafana/conf/provisioning/dashboards/custom

@@ -14,3 +14,17 @@ datasources:
       defaultBucket: home-services
     secureJsonData:
       token: dev-influx-token
+
+  - name: InfluxDB InfluxQL
+    uid: influxdb_influxql
+    type: influxdb
+    access: proxy
+    url: http://influxdb:8086
+    isDefault: false
+    editable: true
+    jsonData:
+      version: InfluxQL
+      dbName: home-services
+      httpHeaderName1: Authorization
+    secureJsonData:
+      httpHeaderValue1: Token dev-influx-token

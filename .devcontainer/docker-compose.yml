@@ -45,7 +45,9 @@ services:
     ports:
       - "3000:3000"
     volumes:
-      - ../infra/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ../infra/grafana/provisioning/datasources/influxdb.yml:/otel-lgtm/grafana/conf/provisioning/datasources/influxdb.yml:ro
+      - ../infra/grafana/provisioning/dashboards/demo-service.yml:/otel-lgtm/grafana/conf/provisioning/dashboards/demo-service.yml:ro
+      - ../infra/grafana/provisioning/dashboards-json:/otel-lgtm/grafana/conf/provisioning/dashboards/custom:ro
 
   influxdb:
     image: docker.io/library/influxdb:2.7
