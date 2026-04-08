@@ -22,8 +22,8 @@ use crate::{LoggerConfig, PointWriter};
 pub struct CoreMetadata {
     writer: Arc<dyn PointWriter>,
     config: LoggerConfig,
-    state_index: Arc<RwLock<HashMap<(String, String), DiscoveryKey>>>,
-    entities: Arc<RwLock<HashMap<DiscoveryKey, EntityMetadata>>>,
+    entities: Arc<RwLock<HashMap<(String, String), EntityMetadata>>>,
+    discovery_entities: Arc<RwLock<HashMap<DiscoveryKey, Vec<(String, String)>>>>,
 }
 
 #[derive(Clone, Debug)]
@@ -37,9 +37,13 @@ impl CoreMetadata {
         Self {
             writer,
             config,
-            state_index: Arc::new(RwLock::new(HashMap::new())),
             entities: Arc::new(RwLock::new(HashMap::new())),
+            discovery_entities: Arc::new(RwLock::new(HashMap::new())),
         }
+    }
+
+    fn state_index_key(device_id: &str, capability_id: &str) -> (String, String) {
+        (device_id.to_string(), capability_id.to_string())
     }
 
     fn metadata_for_capability(
@@ -223,29 +227,27 @@ impl EventProcessor for CoreMetadata {
         }
 
         let mut entities = self.entities.write().await;
-        let mut state_index = self.state_index.write().await;
+        let mut discovery_entities = self.discovery_entities.write().await;
 
-        if let Some(previous) = entities.remove(&key) {
-            if let (Some(device_id), Some(capability_id)) = (
-                previous.metadata.get("device_id"),
-                previous.metadata.get("capability_id"),
-            ) {
-                state_index.remove(&(device_id.clone(), capability_id.clone()));
+        if let Some(previous_keys) = discovery_entities.remove(&key) {
+            for state_key in previous_keys {
+                entities.remove(&state_key);
             }
         }
 
+        let mut discovered_state_keys = Vec::with_capacity(event.capabilities.len());
         for capability in &event.capabilities {
             let entity = EntityMetadata {
                 metadata: Self::metadata_for_capability(&event, capability),
                 capability_kind: capability.kind.clone(),
             };
 
-            state_index.insert(
-                (event.device.device_id.clone(), capability.capability_id.clone()),
-                key.clone(),
-            );
-            entities.insert(key.clone(), entity);
+            let state_key = Self::state_index_key(&event.device.device_id, &capability.capability_id);
+            entities.insert(state_key.clone(), entity);
+            discovered_state_keys.push(state_key);
         }
+
+        discovery_entities.insert(key, discovered_state_keys);
     }
 
     async fn on_tombstone(&self, key: DiscoveryKey) {
@@ -255,18 +257,10 @@ impl EventProcessor for CoreMetadata {
         );
 
         let mut entities = self.entities.write().await;
-        let removed = entities.remove(&key);
-        drop(entities);
-
-        if let Some(removed) = removed {
-            if let (Some(device_id), Some(capability_id)) = (
-                removed.metadata.get("device_id"),
-                removed.metadata.get("capability_id"),
-            ) {
-                self.state_index
-                    .write()
-                    .await
-                    .remove(&(device_id.clone(), capability_id.clone()));
+        let mut discovery_entities = self.discovery_entities.write().await;
+        if let Some(state_keys) = discovery_entities.remove(&key) {
+            for state_key in state_keys {
+                entities.remove(&state_key);
             }
         }
     }
@@ -277,10 +271,9 @@ impl EventProcessor for CoreMetadata {
             &[KeyValue::new("event.kind", "state")],
         );
 
-        let index_key = (state.device_id.clone(), state.capability_id.clone());
-        let discovery_key = { self.state_index.read().await.get(&index_key).cloned() };
-
-        let Some(discovery_key) = discovery_key else {
+        let index_key = Self::state_index_key(&state.device_id, &state.capability_id);
+        let metadata = { self.entities.read().await.get(&index_key).cloned() };
+        let Some(metadata) = metadata else {
             logger_metrics().dropped_events_total.add(
                 1,
                 &[
@@ -292,23 +285,6 @@ impl EventProcessor for CoreMetadata {
                 device_id = %state.device_id,
                 capability_id = %state.capability_id,
                 "dropping state sample without active discovery metadata"
-            );
-            return;
-        };
-
-        let metadata = { self.entities.read().await.get(&discovery_key).cloned() };
-        let Some(metadata) = metadata else {
-            logger_metrics().dropped_events_total.add(
-                1,
-                &[
-                    KeyValue::new("event.kind", "state"),
-                    KeyValue::new("reason", "metadata_key_missing"),
-                ],
-            );
-            debug!(
-                device_id = %state.device_id,
-                capability_id = %state.capability_id,
-                "dropping state sample because metadata key disappeared"
             );
             return;
         };
@@ -415,5 +391,130 @@ fn availability_code(status: &hs_device_contracts::Availability) -> u8 {
         hs_device_contracts::Availability::Offline => 0,
         hs_device_contracts::Availability::Degraded => 1,
         hs_device_contracts::Availability::Online => 2,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::sync::Arc;
+
+    use anyhow::Result;
+    use async_trait::async_trait;
+    use hs_device_contracts::{
+        CapabilityDescriptor, CapabilityKind, DeviceDescriptor, DiscoveryMessage, StateMessage,
+    };
+    use hs_eventbus_api::{DiscoveryKey, EventProcessor};
+    use serde_json::json;
+    use tokio::sync::RwLock;
+
+    use crate::{DataPoint, LoggerConfig, PointWriter};
+
+    use super::CoreMetadata;
+
+    #[derive(Default)]
+    struct CaptureWriter {
+        points: Arc<RwLock<Vec<DataPoint>>>,
+    }
+
+    #[async_trait]
+    impl PointWriter for CaptureWriter {
+        async fn write_points(&self, point_list: Vec<DataPoint>) -> Result<()> {
+            self.points.write().await.extend(point_list);
+            Ok(())
+        }
+    }
+
+    fn test_discovery(capability_ids: &[&str]) -> DiscoveryMessage {
+        DiscoveryMessage {
+            device: DeviceDescriptor {
+                service_id: "service-1".to_string(),
+                device_id: "device-1".to_string(),
+                manufacturer: "test".to_string(),
+                model: "model".to_string(),
+                name: "name".to_string(),
+                sw_version: None,
+            },
+            capabilities: capability_ids
+                .iter()
+                .map(|id| CapabilityDescriptor {
+                    capability_id: (*id).to_string(),
+                    kind: if *id == "power" {
+                        CapabilityKind::Switch
+                    } else {
+                        CapabilityKind::Sensor { device_class: None }
+                    },
+                    friendly_name: (*id).to_string(),
+                    unit_of_measurement: None,
+                })
+                .collect(),
+        }
+    }
+
+    #[tokio::test]
+    async fn discovery_with_multiple_capabilities_writes_each_state() {
+        let writer = Arc::new(CaptureWriter::default());
+        let core = CoreMetadata::new(writer.clone(), LoggerConfig::default());
+
+        core.on_discovery(
+            DiscoveryKey::from("key-1"),
+            test_discovery(&["power", "temperature"]),
+        )
+        .await;
+
+        core.on_state(StateMessage {
+            device_id: "device-1".to_string(),
+            capability_id: "power".to_string(),
+            value: json!("ON"),
+            observed_ms: 1,
+        })
+        .await;
+
+        core.on_state(StateMessage {
+            device_id: "device-1".to_string(),
+            capability_id: "temperature".to_string(),
+            value: json!(21.5),
+            observed_ms: 2,
+        })
+        .await;
+
+        let points = writer.points.read().await;
+        assert_eq!(points.len(), 2);
+
+        let capability_ids: Vec<String> = points
+            .iter()
+            .filter_map(|point| point.tags.get("capability_id").cloned())
+            .collect();
+        assert!(capability_ids.contains(&"power".to_string()));
+        assert!(capability_ids.contains(&"temperature".to_string()));
+    }
+
+    #[tokio::test]
+    async fn tombstone_removes_all_capabilities_for_discovery_key() {
+        let writer = Arc::new(CaptureWriter::default());
+        let core = CoreMetadata::new(writer.clone(), LoggerConfig::default());
+        let discovery_key = DiscoveryKey::from("key-1");
+
+        core.on_discovery(discovery_key.clone(), test_discovery(&["power", "temperature"]))
+            .await;
+        core.on_tombstone(discovery_key).await;
+
+        core.on_state(StateMessage {
+            device_id: "device-1".to_string(),
+            capability_id: "power".to_string(),
+            value: json!("ON"),
+            observed_ms: 1,
+        })
+        .await;
+
+        core.on_state(StateMessage {
+            device_id: "device-1".to_string(),
+            capability_id: "temperature".to_string(),
+            value: json!(21.5),
+            observed_ms: 2,
+        })
+        .await;
+
+        let points = writer.points.read().await;
+        assert!(points.is_empty());
     }
 }

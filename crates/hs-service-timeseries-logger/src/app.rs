@@ -2,6 +2,7 @@ use std::sync::Arc;
 
 use hs_eventbus_api::IngestAdapter;
 use hs_eventbus_mqtt_ha::{HomeAssistantMqttConfig, HomeAssistantMqttIngestAdapter};
+use hs_eventbus_mqtt_sparkplug_b::{SparkplugBConfig, SparkplugBMqttIngestAdapter};
 use hs_logger_core::{CoreMetadata, LoggerConfig, PointWriter};
 use tracing::{info, warn};
 
@@ -17,8 +18,19 @@ pub async fn run() -> anyhow::Result<()> {
         .try_init()
         .ok();
 
-    let config = HomeAssistantMqttConfig::from_env(now_unix_ms());
-    let ingest_adapter = HomeAssistantMqttIngestAdapter::connect(config).await?;
+    let mode = AdapterMode::from_env();
+    let now = now_unix_ms();
+
+    let ingest_adapter: Arc<dyn IngestAdapter> = match mode {
+        AdapterMode::HomeAssistant => {
+            let config = HomeAssistantMqttConfig::from_env(now);
+            Arc::new(HomeAssistantMqttIngestAdapter::connect(config).await?)
+        }
+        AdapterMode::SparkplugB => {
+            let config = SparkplugBConfig::from_env(now);
+            Arc::new(SparkplugBMqttIngestAdapter::connect(config).await?)
+        }
+    };
 
     let writer = build_point_writer()?;
     let processor = Arc::new(CoreMetadata::new(writer, LoggerConfig::default()));
@@ -30,6 +42,25 @@ pub async fn run() -> anyhow::Result<()> {
     info!("timeseries logger service stopped");
 
     Ok(())
+}
+
+#[derive(Copy, Clone, Debug)]
+enum AdapterMode {
+    HomeAssistant,
+    SparkplugB,
+}
+
+impl AdapterMode {
+    fn from_env() -> Self {
+        let value = std::env::var("EVENTBUS_ADAPTER")
+            .unwrap_or_else(|_| "mqtt-ha".to_string())
+            .to_ascii_lowercase();
+
+        match value.as_str() {
+            "sparkplug" | "sparkplug-b" | "mqtt-sparkplug-b" => Self::SparkplugB,
+            _ => Self::HomeAssistant,
+        }
+    }
 }
 
 fn build_point_writer() -> anyhow::Result<Arc<dyn PointWriter>> {

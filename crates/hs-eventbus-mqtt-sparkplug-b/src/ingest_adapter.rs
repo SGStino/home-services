@@ -14,6 +14,7 @@ use crate::{
     config::SparkplugBConfig,
     payloads::{decode_payload, metric_value_to_json},
     sparkplug::DataType,
+    topics::sanitize,
     transport::create_client,
 };
 
@@ -41,9 +42,9 @@ impl IngestAdapter for SparkplugBMqttIngestAdapter {
     async fn initialize(&self, processor: Arc<dyn EventProcessor>) -> Result<()> {
         let (client, mut event_loop) = create_client(&self.config);
 
-        let dbirth_filter = format!("spBv1.0/{}/DBIRTH/+/+", self.config.group_id);
-        let ddata_filter = format!("spBv1.0/{}/DDATA/+/+", self.config.group_id);
-        let ddeath_filter = format!("spBv1.0/{}/DDEATH/+/+", self.config.group_id);
+        let dbirth_filter = format!("spBv1.0/{}/DBIRTH/+/+", sanitize(&self.config.group_id));
+        let ddata_filter = format!("spBv1.0/{}/DDATA/+/+", sanitize(&self.config.group_id));
+        let ddeath_filter = format!("spBv1.0/{}/DDEATH/+/+", sanitize(&self.config.group_id));
         let state_filter = "spBv1.0/STATE/+";
 
         client.subscribe(dbirth_filter, QoS::AtLeastOnce).await?;
@@ -56,8 +57,9 @@ impl IngestAdapter for SparkplugBMqttIngestAdapter {
                 match event_loop.poll().await {
                     Ok(Event::Incoming(Packet::Publish(msg))) => {
                         if let Some((group_id, edge_node_id, device_id)) = parse_dbirth_topic(&msg.topic) {
+                            let discovery_key = device_discovery_key(&group_id, &edge_node_id, &device_id);
                             if msg.payload.is_empty() {
-                                processor.on_tombstone(DiscoveryKey::from(msg.topic)).await;
+                                processor.on_tombstone(discovery_key).await;
                                 continue;
                             }
 
@@ -68,7 +70,7 @@ impl IngestAdapter for SparkplugBMqttIngestAdapter {
                                 &msg.payload,
                             ) {
                                 processor
-                                    .on_discovery(DiscoveryKey::from(msg.topic), discovery)
+                                    .on_discovery(discovery_key, discovery)
                                     .await;
                             } else {
                                 warn!(topic = %msg.topic, "failed to parse Sparkplug DBIRTH payload");
@@ -88,9 +90,11 @@ impl IngestAdapter for SparkplugBMqttIngestAdapter {
                             continue;
                         }
 
-                        if let Some((_group_id, _edge_node_id, _device_id)) = parse_ddeath_topic(&msg.topic)
+                        if let Some((group_id, edge_node_id, device_id)) = parse_ddeath_topic(&msg.topic)
                         {
-                            processor.on_tombstone(DiscoveryKey::from(msg.topic)).await;
+                            processor
+                                .on_tombstone(device_discovery_key(&group_id, &edge_node_id, &device_id))
+                                .await;
                             continue;
                         }
 
@@ -177,6 +181,13 @@ fn parse_state_message(topic: &str, payload: &[u8]) -> Option<(String, Availabil
     Some((parts[2].to_string(), status))
 }
 
+fn device_discovery_key(group_id: &str, edge_node_id: &str, device_id: &str) -> DiscoveryKey {
+    DiscoveryKey::from(format!(
+        "spBv1.0/{}/DEVICE/{}/{}",
+        group_id, edge_node_id, device_id
+    ))
+}
+
 fn parse_discovery_message(
     _group_id: &str,
     edge_node_id: &str,
@@ -249,4 +260,29 @@ fn parse_state_messages(device_id: &str, payload: &[u8]) -> Option<Vec<StateMess
     }
 
     Some(messages)
+}
+
+#[cfg(test)]
+mod tests {
+    use hs_eventbus_api::DiscoveryKey;
+
+    use super::{device_discovery_key, parse_dbirth_topic, parse_ddeath_topic};
+
+    #[test]
+    fn dbirth_and_ddeath_share_same_canonical_discovery_key() {
+        let dbirth_topic = "spBv1.0/home_services/DBIRTH/hs_node_dev/living_room_node_01";
+        let ddeath_topic = "spBv1.0/home_services/DDEATH/hs_node_dev/living_room_node_01";
+
+        let dbirth_parts = parse_dbirth_topic(dbirth_topic).expect("valid DBIRTH topic");
+        let ddeath_parts = parse_ddeath_topic(ddeath_topic).expect("valid DDEATH topic");
+
+        let dbirth_key = device_discovery_key(&dbirth_parts.0, &dbirth_parts.1, &dbirth_parts.2);
+        let ddeath_key = device_discovery_key(&ddeath_parts.0, &ddeath_parts.1, &ddeath_parts.2);
+
+        assert_eq!(dbirth_key, ddeath_key);
+        assert_eq!(
+            dbirth_key,
+            DiscoveryKey::from("spBv1.0/home_services/DEVICE/hs_node_dev/living_room_node_01")
+        );
+    }
 }
