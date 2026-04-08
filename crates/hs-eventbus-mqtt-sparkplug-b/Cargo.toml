@@ -1,17 +1,22 @@
 [package]
-name = "hs-service-device-demo"
+name = "hs-eventbus-mqtt-sparkplug-b"
 edition.workspace = true
 version.workspace = true
 license.workspace = true
+build = "build.rs"
 
 [dependencies]
 anyhow.workspace = true
 async-trait.workspace = true
 hs-device-contracts = { path = "../hs-device-contracts" }
-hs-device-core = { path = "../hs-device-core" }
 hs-eventbus-api = { path = "../hs-eventbus-api" }
-hs-eventbus-mqtt-ha = { path = "../hs-eventbus-mqtt-ha" }
-hs-eventbus-mqtt-sparkplug-b = { path = "../hs-eventbus-mqtt-sparkplug-b" }
+opentelemetry.workspace = true
+prost = "0.13"
+rumqttc.workspace = true
 serde_json.workspace = true
 tokio.workspace = true
 tracing.workspace = true
+
+[build-dependencies]
+prost-build = "0.13"
+protoc-bin-vendored = "3"

@@ -60,3 +60,11 @@ services:
       DOCKER_INFLUXDB_INIT_ORG: home-services
       DOCKER_INFLUXDB_INIT_BUCKET: home-services
       DOCKER_INFLUXDB_INIT_ADMIN_TOKEN: dev-influx-token
+
+  node-red:
+    image: docker.io/nodered/node-red:latest
+    restart: unless-stopped
+    depends_on:
+      - mosquitto
+    ports:
+      - "1880:1880"

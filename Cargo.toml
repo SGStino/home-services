@@ -4,6 +4,7 @@ members = [
     "crates/hs-device-contracts",
     "crates/hs-eventbus-api",
     "crates/hs-eventbus-mqtt-ha",
+    "crates/hs-eventbus-mqtt-sparkplug-b",
     "crates/hs-logger-core",
     "crates/hs-service-timeseries-logger",
     "crates/hs-service-device-demo",

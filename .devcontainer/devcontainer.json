@@ -9,7 +9,8 @@
     "mosquitto",
     "otel-collector",
     "lgtm",
-    "influxdb"
+    "influxdb",
+    "sparkplug-client"
   ],
   "workspaceFolder": "/workspaces/home-services",
   "shutdownAction": "stopCompose",
@@ -17,7 +18,7 @@
   "containerEnv": {
     "CARGO_HOME": "/workspaces/home-services/.cargo-home"
   },
-  "forwardPorts": [8080, 8081, 1883, 9001, 3000, 4317, 4318],
+  "forwardPorts": [8080, 8081, 8082, 1883, 9001, 3000, 4317, 4318],
   "postCreateCommand": "cargo fetch",
   "customizations": {
     "vscode": {
