@@ -6,7 +6,7 @@ use prost::Message;
 use serde_json::Value;
 use tokio::sync::RwLock;
 
-use crate::sparkplug::{payload, DataType, Payload};
+use crate::sparkplug::{datatype_from_u32, payload, DataType, Payload};
 
 #[derive(Clone, Debug)]
 pub struct CommandRoute {
@@ -90,7 +90,7 @@ fn metric_type_matches(
     metric_datatype: Option<u32>,
     value: &Value,
 ) -> bool {
-    let declared = metric_datatype.and_then(DataType::from_u32);
+    let declared = metric_datatype.and_then(datatype_from_u32);
     match expected {
         ExpectedCommandType::Boolean => {
             if let Some(t) = declared {

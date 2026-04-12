@@ -13,7 +13,7 @@ use tracing::{debug, error, warn};
 use crate::{
     config::SparkplugBConfig,
     payloads::{decode_payload, metric_value_to_json, rebirth_payload},
-    sparkplug::DataType,
+    sparkplug::{datatype_from_u32, DataType},
     topics::{ncmd_topic, sanitize},
     transport::create_client,
 };
@@ -251,7 +251,7 @@ fn parse_discovery_message(
 
 fn parse_metric_capability(metric: &crate::sparkplug::payload::Metric) -> Option<CapabilityDescriptor> {
     let capability_id = metric.name.clone()?;
-    let datatype = metric.datatype.and_then(DataType::from_u32);
+    let datatype = metric.datatype.and_then(datatype_from_u32);
 
     let kind = match datatype {
         Some(DataType::Boolean) => CapabilityKind::BinarySensor { device_class: None },
