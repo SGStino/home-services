@@ -33,6 +33,22 @@ pub fn state_topic(edge_node_id: &str) -> String {
     format!("spBv1.0/STATE/{}", sanitize(edge_node_id))
 }
 
+pub fn ncmd_topic(group_id: &str, edge_node_id: &str) -> String {
+    format!(
+        "spBv1.0/{}/NCMD/{}",
+        sanitize(group_id),
+        sanitize(edge_node_id)
+    )
+}
+
+pub fn nbirth_topic(group_id: &str, edge_node_id: &str) -> String {
+    format!(
+        "spBv1.0/{}/NBIRTH/{}",
+        sanitize(group_id),
+        sanitize(edge_node_id)
+    )
+}
+
 pub fn sanitize(value: &str) -> String {
     value
         .chars()

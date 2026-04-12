@@ -12,12 +12,14 @@ use rumqttc::{AsyncClient, QoS};
 use tokio::sync::{broadcast, RwLock};
 use tracing::{debug, info};
 
+use std::sync::atomic::{AtomicBool, Ordering};
+
 use crate::{
     command::{expected_command_type, supports_commands, CommandRoute, CommandRoutes},
     config::SparkplugBConfig,
     metrics::sparkplug_metrics,
-    payloads::{availability_payload, discovery_payload, state_payload},
-    topics::{dbirth_topic, dcmd_topic, ddata_topic, state_topic},
+    payloads::{availability_payload, discovery_payload, nbirth_payload, state_payload},
+    topics::{dbirth_topic, dcmd_topic, ddata_topic, nbirth_topic, ncmd_topic, state_topic},
     transport::{create_client, spawn_command_loop},
 };
 
@@ -28,6 +30,8 @@ pub struct SparkplugBMqttPublishAdapter {
     command_routes: CommandRoutes,
     commands_tx: broadcast::Sender<CommandMessage>,
     sequence_by_device: Arc<RwLock<HashMap<String, u64>>>,
+    discoveries: Arc<RwLock<HashMap<String, DiscoveryMessage>>>,
+    nbirth_published: Arc<AtomicBool>,
 }
 
 impl SparkplugBMqttPublishAdapter {
@@ -36,11 +40,31 @@ impl SparkplugBMqttPublishAdapter {
         let routes: CommandRoutes =
             std::sync::Arc::new(tokio::sync::RwLock::new(std::collections::HashMap::new()));
         let (commands_tx, _) = broadcast::channel(128);
+        let (rebirth_tx, rebirth_rx) = broadcast::channel::<()>(4);
+
+        // Subscribe to NCMD so rebirth requests from host applications are delivered
+        // to the event loop before it is consumed by spawn_command_loop.
+        let ncmd_filter = ncmd_topic(&config.group_id, &config.edge_node_id);
+        client.subscribe(ncmd_filter, QoS::AtLeastOnce).await?;
 
         spawn_command_loop(
             event_loop,
             std::sync::Arc::clone(&routes),
             commands_tx.clone(),
+            rebirth_tx,
+        );
+
+        let discoveries: Arc<RwLock<HashMap<String, DiscoveryMessage>>> =
+            Arc::new(RwLock::new(HashMap::new()));
+        let nbirth_published = Arc::new(AtomicBool::new(false));
+
+        // Spawn a task that re-publishes NBIRTH + all stored DBIRTHs when
+        // the host application sends a rebirth NCMD.
+        spawn_rebirth_handler(
+            rebirth_rx,
+            client.clone(),
+            config.clone(),
+            Arc::clone(&discoveries),
         );
 
         Ok(Self {
@@ -49,6 +73,8 @@ impl SparkplugBMqttPublishAdapter {
             command_routes: routes,
             commands_tx,
             sequence_by_device: Arc::new(RwLock::new(HashMap::new())),
+            discoveries,
+            nbirth_published,
         })
     }
 
@@ -106,13 +132,30 @@ impl EventBusAdapter for SparkplugBMqttPublishAdapter {
     }
 
     async fn publish_discovery(&self, discovery: &DiscoveryMessage) -> Result<()> {
+        let now_ms = current_unix_ms();
+
+        // Publish NBIRTH exactly once per node connection, before any DBIRTH.
+        if !self.nbirth_published.swap(true, Ordering::AcqRel) {
+            let nbirth_topic = nbirth_topic(&self.config.group_id, &self.config.edge_node_id);
+            let nbirth = nbirth_payload(now_ms);
+            self.client
+                .publish(nbirth_topic.clone(), QoS::AtLeastOnce, false, nbirth)
+                .await?;
+            info!(topic = %nbirth_topic, "published Sparkplug NBIRTH");
+        }
+
+        // Store the discovery so the rebirth handler can re-publish DBIRTH on demand.
+        self.discoveries
+            .write()
+            .await
+            .insert(discovery.device.device_id.clone(), discovery.clone());
+
         let seq = self.next_seq(&discovery.device.device_id).await;
         let topic = dbirth_topic(
             &self.config.group_id,
             &self.config.edge_node_id,
             &discovery.device.device_id,
         );
-        let now_ms = current_unix_ms();
         let payload = discovery_payload(discovery, seq, now_ms);
 
         let result = self
@@ -202,4 +245,43 @@ fn current_unix_ms() -> u64 {
         .duration_since(std::time::UNIX_EPOCH)
         .unwrap_or_default()
         .as_millis() as u64
+}
+
+fn spawn_rebirth_handler(
+    mut rebirth_rx: broadcast::Receiver<()>,
+    client: AsyncClient,
+    config: SparkplugBConfig,
+    discoveries: Arc<RwLock<HashMap<String, DiscoveryMessage>>>,
+) {
+    use tokio::sync::broadcast::error::RecvError;
+    tokio::spawn(async move {
+        loop {
+            match rebirth_rx.recv().await {
+                Ok(()) => {
+                    let now_ms = current_unix_ms();
+
+                    let nbirth_t = nbirth_topic(&config.group_id, &config.edge_node_id);
+                    let nbirth = nbirth_payload(now_ms);
+                    if let Err(err) = client.publish(nbirth_t.clone(), QoS::AtLeastOnce, false, nbirth).await {
+                        tracing::warn!(error = %err, "rebirth: failed to publish NBIRTH");
+                        continue;
+                    }
+                    info!(topic = %nbirth_t, "rebirth: published NBIRTH");
+
+                    let snapshot = discoveries.read().await.clone();
+                    for (device_id, discovery) in &snapshot {
+                        let payload = discovery_payload(discovery, 0, now_ms);
+                        let t = dbirth_topic(&config.group_id, &config.edge_node_id, device_id);
+                        if let Err(err) = client.publish(t.clone(), QoS::AtLeastOnce, true, payload).await {
+                            tracing::warn!(error = %err, device_id = %device_id, "rebirth: failed to publish DBIRTH");
+                        } else {
+                            info!(topic = %t, device_id = %device_id, "rebirth: published DBIRTH");
+                        }
+                    }
+                }
+                Err(RecvError::Lagged(_)) => continue,
+                Err(RecvError::Closed) => break,
+            }
+        }
+    });
 }

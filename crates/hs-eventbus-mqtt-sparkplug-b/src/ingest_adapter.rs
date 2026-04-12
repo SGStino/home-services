@@ -12,9 +12,9 @@ use tracing::{debug, error, warn};
 
 use crate::{
     config::SparkplugBConfig,
-    payloads::{decode_payload, metric_value_to_json},
+    payloads::{decode_payload, metric_value_to_json, rebirth_payload},
     sparkplug::DataType,
-    topics::sanitize,
+    topics::{ncmd_topic, sanitize},
     transport::create_client,
 };
 
@@ -42,16 +42,20 @@ impl IngestAdapter for SparkplugBMqttIngestAdapter {
     async fn initialize(&self, processor: Arc<dyn EventProcessor>) -> Result<()> {
         let (client, mut event_loop) = create_client(&self.config);
 
-        let dbirth_filter = format!("spBv1.0/{}/DBIRTH/+/+", sanitize(&self.config.group_id));
-        let ddata_filter = format!("spBv1.0/{}/DDATA/+/+", sanitize(&self.config.group_id));
-        let ddeath_filter = format!("spBv1.0/{}/DDEATH/+/+", sanitize(&self.config.group_id));
+        let group = sanitize(&self.config.group_id);
+        let dbirth_filter = format!("spBv1.0/{}/DBIRTH/+/+", group);
+        let ddata_filter = format!("spBv1.0/{}/DDATA/+/+", group);
+        let ddeath_filter = format!("spBv1.0/{}/DDEATH/+/+", group);
+        let nbirth_filter = format!("spBv1.0/{}/NBIRTH/+", group);
         let state_filter = "spBv1.0/STATE/+";
 
         client.subscribe(dbirth_filter, QoS::AtLeastOnce).await?;
         client.subscribe(ddata_filter, QoS::AtLeastOnce).await?;
         client.subscribe(ddeath_filter, QoS::AtLeastOnce).await?;
+        client.subscribe(nbirth_filter, QoS::AtLeastOnce).await?;
         client.subscribe(state_filter, QoS::AtLeastOnce).await?;
 
+        let group_id = self.config.group_id.clone();
         tokio::spawn(async move {
             loop {
                 match event_loop.poll().await {
@@ -95,6 +99,18 @@ impl IngestAdapter for SparkplugBMqttIngestAdapter {
                             processor
                                 .on_tombstone(device_discovery_key(&group_id, &edge_node_id, &device_id))
                                 .await;
+                            continue;
+                        }
+
+                        if let Some(edge_node_id) = parse_nbirth_topic(&msg.topic) {
+                            let topic = ncmd_topic(&group_id, &edge_node_id);
+                            let now_ms = current_unix_ms();
+                            let payload = rebirth_payload(now_ms);
+                            if let Err(err) = client.publish(topic, QoS::AtLeastOnce, false, payload).await {
+                                warn!(error = %err, edge_node_id = %edge_node_id, "failed to send rebirth NCMD");
+                            } else {
+                                debug!(edge_node_id = %edge_node_id, "sent rebirth NCMD to edge node");
+                            }
                             continue;
                         }
 
@@ -186,6 +202,21 @@ fn device_discovery_key(group_id: &str, edge_node_id: &str, device_id: &str) -> 
         "spBv1.0/{}/DEVICE/{}/{}",
         group_id, edge_node_id, device_id
     ))
+}
+
+fn parse_nbirth_topic(topic: &str) -> Option<String> {
+    let parts: Vec<&str> = topic.split('/').collect();
+    if parts.len() != 4 || parts[0] != "spBv1.0" || parts[2] != "NBIRTH" {
+        return None;
+    }
+    Some(parts[3].to_string())
+}
+
+fn current_unix_ms() -> u64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_millis() as u64
 }
 
 fn parse_discovery_message(

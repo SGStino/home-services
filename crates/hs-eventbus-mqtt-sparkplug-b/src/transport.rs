@@ -8,7 +8,7 @@ use tracing::{error, warn};
 use crate::{
     command::{parse_command_messages, CommandRoutes},
     config::SparkplugBConfig,
-    payloads::availability_payload,
+    payloads::{availability_payload, decode_payload},
     topics::state_topic,
 };
 
@@ -39,11 +39,20 @@ pub fn spawn_command_loop(
     mut event_loop: EventLoop,
     routes: CommandRoutes,
     commands_tx: broadcast::Sender<hs_device_contracts::CommandMessage>,
+    rebirth_tx: broadcast::Sender<()>,
 ) {
     tokio::spawn(async move {
         loop {
             match event_loop.poll().await {
                 Ok(Event::Incoming(Packet::Publish(msg))) => {
+                    // NCMD: host application requesting node rebirth.
+                    if msg.topic.contains("/NCMD/") {
+                        if is_rebirth_request(&msg.payload) {
+                            let _ = rebirth_tx.send(());
+                        }
+                        continue;
+                    }
+
                     let route = routes.read().await.get(&msg.topic).cloned();
                     if let Some(route) = route {
                         match parse_command_messages(&route, &msg.payload) {
@@ -68,4 +77,15 @@ pub fn spawn_command_loop(
             }
         }
     });
+}
+
+fn is_rebirth_request(bytes: &[u8]) -> bool {
+    let Some(payload) = decode_payload(bytes) else {
+        return false;
+    };
+    payload.metrics.iter().any(|m| {
+        m.name.as_deref() == Some("Node Control/Rebirth")
+            && m.value
+                == Some(crate::sparkplug::payload::metric::Value::BooleanValue(true))
+    })
 }
