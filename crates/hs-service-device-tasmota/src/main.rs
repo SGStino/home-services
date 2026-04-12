@@ -1,8 +1,9 @@
 mod app;
+mod bootstrap;
+mod command_payload;
 mod config;
-mod mapper;
-mod matter_model;
-mod matter_ws;
+mod tasmota_client;
+mod time;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {

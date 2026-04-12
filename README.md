@@ -165,6 +165,24 @@ export HS_DEVICE_MODEL="HS110(FR)"
 export HS_DEVICE_MANUFACTURER="TP-Link"
 ```
 
+## Run the Matter to Sparkplug bridge
+
+Set the Matter websocket endpoint and Sparkplug connection settings, then run:
+
+```bash
+export MATTER_WS_URL="ws://127.0.0.1:5580/ws"
+export EVENTBUS_ADAPTER="mqtt-sparkplug-b"
+export MQTT_HOST="mosquitto"
+export SPARKPLUG_GROUP_ID="home-services"
+export SPARKPLUG_EDGE_NODE_ID="matter-bridge-node"
+# Optional for private PKI when using wss://
+# export MATTER_TLS_CA_CERT_PATH="/workspaces/home-services/home.arpa Root CA.crt"
+
+cargo run -p hs-device-bridge-matter
+```
+
+The bridge subscribes to the Matter websocket event stream (`start_listening`) and republishes node discovery, availability, and attribute states as Sparkplug telemetry.
+
 ## Service ports
 
 - Mosquitto MQTT broker: `1883`

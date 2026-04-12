@@ -3,6 +3,7 @@ use std::{collections::HashMap, time::SystemTime};
 use anyhow::{bail, Context, Result};
 use hs_device_contracts::{Availability, AvailabilityMessage};
 use hs_eventbus_api::EventBusAdapter;
+use hs_eventbus_mqtt_ha::{HomeAssistantMqttAdapter, HomeAssistantMqttConfig};
 use hs_eventbus_mqtt_sparkplug_b::{SparkplugBConfig, SparkplugBMqttAdapter};
 use serde_json::Value;
 use tracing::{debug, info, warn};
@@ -13,16 +14,46 @@ use crate::{
     matter_ws::{connect, parse_message, read_next_message, send_start_listening, MatterMessage},
 };
 
+#[derive(Copy, Clone, Debug)]
+enum AdapterMode {
+    HomeAssistant,
+    SparkplugB,
+}
+
+impl AdapterMode {
+    fn from_env() -> Self {
+        let value = std::env::var("EVENTBUS_ADAPTER")
+            .unwrap_or_else(|_| "mqtt-ha".to_string())
+            .to_ascii_lowercase();
+        match value.as_str() {
+            "sparkplug" | "sparkplug-b" | "mqtt-sparkplug-b" => Self::SparkplugB,
+            _ => Self::HomeAssistant,
+        }
+    }
+}
+
 pub async fn run() -> Result<()> {
     tracing_subscriber::fmt()
         .with_env_filter(tracing_subscriber::EnvFilter::from_default_env())
         .try_init()
         .ok();
 
-    let bridge_config = BridgeConfig::from_env();
-    let mqtt_config = SparkplugBConfig::from_env(now_unix_ms());
-    let adapter = SparkplugBMqttAdapter::connect(mqtt_config).await?;
+    let now = now_unix_ms();
+    match AdapterMode::from_env() {
+        AdapterMode::HomeAssistant => {
+            let adapter =
+                HomeAssistantMqttAdapter::connect(HomeAssistantMqttConfig::from_env(now)).await?;
+            run_with_adapter(adapter).await
+        }
+        AdapterMode::SparkplugB => {
+            let adapter = SparkplugBMqttAdapter::connect(SparkplugBConfig::from_env(now)).await?;
+            run_with_adapter(adapter).await
+        }
+    }
+}
 
+async fn run_with_adapter<A: EventBusAdapter>(adapter: A) -> Result<()> {
+    let bridge_config = BridgeConfig::from_env();
     let mut socket = connect(
         &bridge_config.matter_ws_url,
         bridge_config.matter_tls_ca_cert_path.as_deref(),
@@ -70,8 +101,8 @@ pub async fn run() -> Result<()> {
     Ok(())
 }
 
-async fn handle_start_snapshot(
-    adapter: &SparkplugBMqttAdapter,
+async fn handle_start_snapshot<A: EventBusAdapter>(
+    adapter: &A,
     nodes: &mut HashMap<u64, NodeSnapshot>,
     result: Value,
 ) -> Result<()> {
@@ -91,8 +122,8 @@ async fn handle_start_snapshot(
     Ok(())
 }
 
-async fn handle_event(
-    adapter: &SparkplugBMqttAdapter,
+async fn handle_event<A: EventBusAdapter>(
+    adapter: &A,
     nodes: &mut HashMap<u64, NodeSnapshot>,
     event: &str,
     data: Value,
@@ -151,7 +182,7 @@ async fn handle_event(
     Ok(())
 }
 
-async fn publish_full_snapshot(adapter: &SparkplugBMqttAdapter, snapshot: &NodeSnapshot) -> Result<()> {
+async fn publish_full_snapshot<A: EventBusAdapter>(adapter: &A, snapshot: &NodeSnapshot) -> Result<()> {
     adapter.publish_discovery(&snapshot.discovery()).await?;
     adapter.publish_availability(&snapshot.availability_message()).await?;
 
@@ -162,7 +193,7 @@ async fn publish_full_snapshot(adapter: &SparkplugBMqttAdapter, snapshot: &NodeS
     info!(
         node_id = snapshot.node_id,
         capabilities = snapshot.capabilities().len(),
-        "published Matter snapshot to Sparkplug"
+        "published Matter node snapshot to event bus"
     );
     Ok(())
 }

@@ -5,6 +5,9 @@ use hs_device_contracts::{
     DeviceDescriptor, DiscoveryMessage, StateMessage,
 };
 use serde_json::Value;
+use tracing::info;
+
+use crate::matter_model;
 
 const CLUSTER_ON_OFF: u64 = 6;
 const CLUSTER_LEVEL_CONTROL: u64 = 8;
@@ -12,6 +15,8 @@ const CLUSTER_COLOR_CONTROL: u64 = 768;
 const CLUSTER_TEMPERATURE_MEASUREMENT: u64 = 1026;
 const CLUSTER_RELATIVE_HUMIDITY_MEASUREMENT: u64 = 1029;
 const CLUSTER_POWER_SOURCE: u64 = 47;
+const CLUSTER_ELECTRICAL_ENERGY_MEASUREMENT: u64 = 144;
+const CLUSTER_ELECTRICAL_POWER_MEASUREMENT: u64 = 145;
 
 #[derive(Clone, Debug)]
 pub struct NodeSnapshot {
@@ -44,6 +49,14 @@ impl NodeSnapshot {
         let friendly_name = string_attr(&attributes, "0/40/5")
             .unwrap_or_else(|| format!("Matter Node {}", node_id));
         let sw_version = string_attr(&attributes, "0/40/7");
+
+        let mut clusters: Vec<u64> = attributes
+            .keys()
+            .filter_map(|path| parse_attribute_path(path).map(|(_, cluster, _)| cluster))
+            .collect();
+        clusters.sort_unstable();
+        clusters.dedup();
+        info!(node_id, ?clusters, "Matter node attribute clusters observed");
 
         Some(Self {
             node_id,
@@ -110,7 +123,7 @@ impl NodeSnapshot {
             out.push(StateMessage {
                 device_id: self.device_id(),
                 capability_id: capability_id_from_path(path),
-                value: value.clone(),
+                value: normalize_matter_value(value.clone()),
                 observed_ms,
             });
         }
@@ -124,7 +137,7 @@ impl NodeSnapshot {
         Some(StateMessage {
             device_id: self.device_id(),
             capability_id: capability_id_from_path(path),
-            value,
+            value: normalize_matter_value(value),
             observed_ms,
         })
     }
@@ -143,7 +156,11 @@ impl NodeSnapshot {
 }
 
 fn capability_from_path(path: &str) -> Option<CapabilityDescriptor> {
-    let (_, cluster, _) = parse_attribute_path(path)?;
+    let (endpoint, cluster, attribute) = parse_attribute_path(path)?;
+
+    if matter_model::is_vendor_specific_attribute(attribute) {
+        return None;
+    }
 
     let kind = match cluster {
         CLUSTER_ON_OFF => CapabilityKind::Switch,
@@ -159,27 +176,29 @@ fn capability_from_path(path: &str) -> Option<CapabilityDescriptor> {
         CLUSTER_POWER_SOURCE => CapabilityKind::Sensor {
             device_class: Some(DeviceClass::from(hs_device_contracts::sensor_class::BATTERY)),
         },
+        CLUSTER_ELECTRICAL_ENERGY_MEASUREMENT => CapabilityKind::Sensor {
+            device_class: Some(DeviceClass::from(hs_device_contracts::sensor_class::ENERGY)),
+        },
+        CLUSTER_ELECTRICAL_POWER_MEASUREMENT => CapabilityKind::Sensor {
+            device_class: Some(DeviceClass::from(hs_device_contracts::sensor_class::POWER)),
+        },
         _ => CapabilityKind::Sensor { device_class: None },
     };
 
     Some(CapabilityDescriptor {
-        capability_id: capability_id_from_path(path),
+        capability_id: matter_model::capability_id(endpoint, cluster, attribute),
         kind,
-        friendly_name: path.to_string(),
-        unit_of_measurement: unit_for_cluster(cluster),
+        friendly_name: matter_model::friendly_name(endpoint, cluster, attribute),
+        unit_of_measurement: matter_model::unit_for_attribute(cluster, attribute)
+            .map(str::to_string),
     })
 }
 
-fn unit_for_cluster(cluster: u64) -> Option<String> {
-    match cluster {
-        CLUSTER_TEMPERATURE_MEASUREMENT => Some("°C".to_string()),
-        CLUSTER_RELATIVE_HUMIDITY_MEASUREMENT => Some("%".to_string()),
-        _ => None,
-    }
-}
-
 fn capability_id_from_path(path: &str) -> String {
-    format!("attr_{}", path.replace('/', "_"))
+    match parse_attribute_path(path) {
+        Some((endpoint, cluster, attribute)) => matter_model::capability_id(endpoint, cluster, attribute),
+        None => format!("attr_{}", path.replace('/', "_")),
+    }
 }
 
 fn parse_attribute_path(path: &str) -> Option<(u64, u64, u64)> {
@@ -189,6 +208,13 @@ fn parse_attribute_path(path: &str) -> Option<(u64, u64, u64)> {
     let attribute = parts.next()?.parse().ok()?;
 
     Some((endpoint, cluster, attribute))
+}
+
+fn normalize_matter_value(value: Value) -> Value {
+    match value {
+        Value::Object(mut object) => object.remove("value").unwrap_or(Value::Object(object)),
+        other => other,
+    }
 }
 
 fn string_attr(attrs: &HashMap<String, Value>, path: &str) -> Option<String> {

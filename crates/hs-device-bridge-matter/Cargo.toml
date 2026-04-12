@@ -11,6 +11,7 @@ base64 = "0.22"
 futures-util = "0.3"
 hs-device-contracts = { path = "../hs-device-contracts" }
 hs-eventbus-api = { path = "../hs-eventbus-api" }
+hs-eventbus-mqtt-ha = { path = "../hs-eventbus-mqtt-ha" }
 hs-eventbus-mqtt-sparkplug-b = { path = "../hs-eventbus-mqtt-sparkplug-b" }
 rustls = "0.23"
 rustls-pemfile = "2"

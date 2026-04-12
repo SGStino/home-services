@@ -10,6 +10,7 @@ members = [
     "crates/hs-service-device-demo",
     "crates/hs-service-device-esphome",
     "crates/hs-service-device-tplink-hs110",
+    "crates/hs-service-device-tasmota",
     "crates/hs-device-bridge-matter",
 ]
 resolver = "2"

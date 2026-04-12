@@ -5,3 +5,9 @@ Cargo.lock
 .env.local
 .env.*.local
 /devices/
+*.crt
+*.key
+__pycache__/
+*.pyc
+*.pyo
+*.log

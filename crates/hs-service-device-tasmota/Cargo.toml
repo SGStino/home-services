@@ -1,0 +1,16 @@
+[package]
+name = "hs-service-device-tasmota"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+
+[dependencies]
+anyhow.workspace = true
+async-trait.workspace = true
+hs-device-contracts = { path = "../hs-device-contracts" }
+hs-device-core = { path = "../hs-device-core" }
+hs-eventbus-mqtt-ha = { path = "../hs-eventbus-mqtt-ha" }
+reqwest.workspace = true
+serde_json.workspace = true
+tokio.workspace = true
+tracing.workspace = true
