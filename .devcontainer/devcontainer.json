@@ -10,7 +10,7 @@
     "otel-collector",
     "lgtm",
     "influxdb",
-    "sparkplug-client"
+    "node-red"
   ],
   "workspaceFolder": "/workspaces/home-services",
   "shutdownAction": "stopCompose",
