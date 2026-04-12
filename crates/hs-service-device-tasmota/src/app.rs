@@ -1,5 +1,8 @@
 use std::time::Duration;
 
+use std::collections::HashMap;
+use serde_json::Value;
+
 use anyhow::Result;
 use async_trait::async_trait;
 use hs_device_contracts::{CommandMessage, DeviceDescriptor, StateMessage};
@@ -13,6 +16,10 @@ use crate::{
     command_payload::{command_is_off, command_is_on},
     config::{DeviceConfig, ServiceConfig},
     tasmota_client::{TasmotaClient, TasmotaStatus},
+struct TasmotaBehavior {
+    client: TasmotaClient,
+    last_states: HashMap<String, Value>, // capability_id -> last value
+}
     time::now_unix_ms,
 };
 
@@ -35,7 +42,10 @@ pub async fn run() -> Result<()> {
     let adapter = HomeAssistantMqttAdapter::connect(config.ha).await?;
     let commands = adapter
         .subscribe_device_commands(&device, &capabilities)
-        .await?;
+    let behavior = TasmotaBehavior {
+        client,
+        last_states: HashMap::new(),
+    };
 
     let behavior = TasmotaBehavior { client };
 
@@ -138,14 +148,19 @@ impl DeviceServiceBehavior<HomeAssistantMqttAdapter> for TasmotaBehavior {
         match self.client.status().await {
             Ok(status) => {
                 for state in states_from_status(device, status, now_unix_ms()) {
-                    runtime.publish_state(state).await?;
+                    let cap = state.capability_id.clone();
+                    let val = state.value.clone();
+                    let changed = self.last_states.get(&cap) != Some(&val);
+                    if changed {
+                        runtime.publish_state(state.clone()).await?;
+                        self.last_states.insert(cap, val);
+                    }
                 }
             }
             Err(error) => {
                 warn!(error = %error, "failed to poll Tasmota status");
             }
         }
-
         Ok(())
     }
 
@@ -172,9 +187,14 @@ impl DeviceServiceBehavior<HomeAssistantMqttAdapter> for TasmotaBehavior {
 
         let status = self.client.status().await?;
         for state in states_from_status(device, status, now_unix_ms()) {
-            runtime.publish_state(state).await?;
+            let cap = state.capability_id.clone();
+            let val = state.value.clone();
+            let changed = self.last_states.get(&cap) != Some(&val);
+            if changed {
+                runtime.publish_state(state.clone()).await?;
+                self.last_states.insert(cap, val);
+            }
         }
-
         Ok(ServiceDirective::Continue)
     }
 }
