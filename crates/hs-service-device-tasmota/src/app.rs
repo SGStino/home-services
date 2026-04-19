@@ -16,10 +16,6 @@ use crate::{
     command_payload::{command_is_off, command_is_on},
     config::{DeviceConfig, ServiceConfig},
     tasmota_client::{TasmotaClient, TasmotaStatus},
-struct TasmotaBehavior {
-    client: TasmotaClient,
-    last_states: HashMap<String, Value>, // capability_id -> last value
-}
     time::now_unix_ms,
 };
 
@@ -42,12 +38,12 @@ pub async fn run() -> Result<()> {
     let adapter = HomeAssistantMqttAdapter::connect(config.ha).await?;
     let commands = adapter
         .subscribe_device_commands(&device, &capabilities)
+        .await?;
+
     let behavior = TasmotaBehavior {
         client,
         last_states: HashMap::new(),
     };
-
-    let behavior = TasmotaBehavior { client };
 
     run_device_service(
         env!("CARGO_PKG_NAME"),
@@ -123,6 +119,7 @@ fn default_device_id(status: &TasmotaStatus) -> String {
 
 struct TasmotaBehavior {
     client: TasmotaClient,
+    last_states: HashMap<String, Value>, // capability_id -> last value
 }
 
 #[async_trait]
