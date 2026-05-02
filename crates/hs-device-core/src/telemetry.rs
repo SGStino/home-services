@@ -12,6 +12,7 @@ use opentelemetry_sdk::{
     Resource,
 };
 use std::{env, time::Duration};
+use tracing::dispatcher;
 use tracing_subscriber::{
     filter::filter_fn, layer::SubscriberExt, util::SubscriberInitExt, EnvFilter, Layer,
 };
@@ -54,6 +55,12 @@ impl Drop for TelemetryGuard {
 }
 
 pub fn init(service_name: &str) -> Result<TelemetryGuard> {
+    // Allow callers to initialize tracing early (for pre-runtime startup logs)
+    // without failing when core runtime wiring invokes init again.
+    if dispatcher::has_been_set() {
+        return Ok(TelemetryGuard::no_otel());
+    }
+
     let cfg = TelemetryConfig::from_env(service_name);
     let env_filter =
         EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new(DEFAULT_LOG_FILTER));
