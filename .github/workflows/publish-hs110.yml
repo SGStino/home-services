@@ -2,14 +2,14 @@ name: Publish TP-Link HS110 Service Image
 
 on:
   push:
-    branches: [main]
+    branches: [master]
     paths:
       - "Cargo.toml"
       - "Cargo.lock"
       - "Dockerfile.hs110"
       - ".github/workflows/publish-hs110.yml"
-      - "crates/hs-contracts/**"
-      - "crates/hs-core/**"
+      - "crates/hs-device-contracts/**"
+      - "crates/hs-device-core/**"
       - "crates/hs-eventbus-api/**"
       - "crates/hs-eventbus-mqtt-ha/**"
       - "crates/hs-service-device-tplink-hs110/**"

@@ -2,14 +2,14 @@ name: Publish ESPHome Service Image
 
 on:
   push:
-    branches: [main]
+    branches: [master]
     paths:
       - "Cargo.toml"
       - "Cargo.lock"
       - "Dockerfile.esphome"
       - ".github/workflows/publish-esphome.yml"
-      - "crates/hs-contracts/**"
-      - "crates/hs-core/**"
+      - "crates/hs-device-contracts/**"
+      - "crates/hs-device-core/**"
       - "crates/hs-eventbus-api/**"
       - "crates/hs-eventbus-mqtt-ha/**"
       - "crates/hs-service-device-esphome/**"
