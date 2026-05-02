@@ -2,7 +2,7 @@ name: Publish Matter Bridge Service Image
 
 on:
   push:
-    branches: [main]
+    branches: [master]
     paths:
       - "Cargo.toml"
       - "Cargo.lock"
