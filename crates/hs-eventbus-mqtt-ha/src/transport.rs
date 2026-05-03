@@ -1,7 +1,9 @@
 use std::time::Duration;
 
 use hs_device_contracts::Availability;
-use rumqttc::{AsyncClient, Event, EventLoop, LastWill, MqttOptions, Packet, QoS};
+use rumqttc::v5::mqttbytes::v5::{LastWill, LastWillProperties, Packet};
+use rumqttc::v5::mqttbytes::QoS;
+use rumqttc::v5::{AsyncClient, Event, EventLoop, MqttOptions};
 use tokio::sync::broadcast;
 use tracing::{error, warn};
 
@@ -25,11 +27,23 @@ pub fn build_mqtt_options(config: &HomeAssistantMqttConfig) -> MqttOptions {
         &config.client_id,
         &config.availability_session,
     );
+    let lwt_properties = config
+        .availability_message_expiry_secs
+        .map(|expiry_secs| LastWillProperties {
+            delay_interval: None,
+            payload_format_indicator: None,
+            message_expiry_interval: Some(expiry_secs),
+            content_type: None,
+            response_topic: None,
+            correlation_data: None,
+            user_properties: Vec::new(),
+        });
     options.set_last_will(LastWill::new(
         lwt_topic,
         availability_payload(&Availability::Offline),
         QoS::AtLeastOnce,
         true,
+        lwt_properties,
     ));
 
     options
@@ -48,7 +62,8 @@ pub fn spawn_command_loop(
         loop {
             match event_loop.poll().await {
                 Ok(Event::Incoming(Packet::Publish(msg))) => {
-                    let route = routes.read().await.get(&msg.topic).cloned();
+                        let topic = String::from_utf8_lossy(&msg.topic);
+                        let route = routes.read().await.get(topic.as_ref()).cloned();
                     if let Some(route) = route {
                         let payload = parse_command_payload(&msg.payload);
                         let command = into_command_message(route, payload);

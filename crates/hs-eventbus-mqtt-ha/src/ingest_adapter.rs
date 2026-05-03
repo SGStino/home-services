@@ -8,7 +8,9 @@ use hs_device_contracts::{
     DeviceDescriptor, DiscoveryMessage, LightFeatures, NumberConfig, StateMessage,
 };
 use hs_eventbus_api::{DiscoveryKey, EventProcessor, IngestAdapter};
-use rumqttc::{AsyncClient, Event, Packet, QoS};
+use rumqttc::v5::mqttbytes::v5::Packet;
+use rumqttc::v5::mqttbytes::QoS;
+use rumqttc::v5::{AsyncClient, Event};
 use serde_json::Value;
 use tracing::{debug, error, warn};
 
@@ -52,8 +54,10 @@ impl IngestAdapter for HomeAssistantMqttIngestAdapter {
             loop {
                 match event_loop.poll().await {
                     Ok(Event::Incoming(Packet::Publish(msg))) => {
+                        let topic = String::from_utf8_lossy(&msg.topic);
+
                         if let Some((component, node_id, object_id, discovery_key)) =
-                            parse_discovery_topic(&discovery_prefix, &msg.topic)
+                            parse_discovery_topic(&discovery_prefix, topic.as_ref())
                         {
                             if msg.payload.is_empty() {
                                 if let Some(topic) = discovery_availability_topics.remove(&discovery_key)
@@ -87,25 +91,25 @@ impl IngestAdapter for HomeAssistantMqttIngestAdapter {
                             {
                                 processor.on_discovery(discovery_key, discovery).await;
                             } else {
-                                warn!(topic = %msg.topic, "failed to parse discovery payload");
+                                warn!(topic = %topic, "failed to parse discovery payload");
                             }
                             continue;
                         }
 
-                        if let Some((_, device_id, capability_id)) = parse_state_topic(&msg.topic) {
+                        if let Some((_, device_id, capability_id)) = parse_state_topic(topic.as_ref()) {
                             if let Some(state) =
                                 parse_state_message(&device_id, &capability_id, &msg.payload)
                             {
                                 processor.on_state(state).await;
                             } else {
-                                warn!(topic = %msg.topic, "failed to parse state payload");
+                                warn!(topic = %topic, "failed to parse state payload");
                             }
                             continue;
                         }
 
-                        if let Some(node_id) = availability_topic_node_id.get(&msg.topic) {
+                        if let Some(node_id) = availability_topic_node_id.get(topic.as_ref()) {
                             let Some(status) = parse_availability_status(&msg.payload) else {
-                                warn!(topic = %msg.topic, "failed to parse availability payload");
+                                warn!(topic = %topic, "failed to parse availability payload");
                                 continue;
                             };
 
@@ -120,7 +124,7 @@ impl IngestAdapter for HomeAssistantMqttIngestAdapter {
                             continue;
                         }
 
-                        debug!(topic = %msg.topic, "ignored non-ingest MQTT topic");
+                        debug!(topic = %topic, "ignored non-ingest MQTT topic");
                     }
                     Ok(_) => {}
                     Err(err) => {

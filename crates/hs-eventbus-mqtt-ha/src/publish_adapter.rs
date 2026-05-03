@@ -6,7 +6,9 @@ use hs_device_contracts::{
 };
 use hs_eventbus_api::{CommandSubscriber, EventBusAdapter};
 use opentelemetry::KeyValue;
-use rumqttc::{AsyncClient, QoS};
+use rumqttc::v5::mqttbytes::v5::PublishProperties;
+use rumqttc::v5::mqttbytes::QoS;
+use rumqttc::v5::AsyncClient;
 use tokio::sync::broadcast;
 use tracing::{debug, info};
 
@@ -190,10 +192,19 @@ impl EventBusAdapter for HomeAssistantMqttPublishAdapter {
         );
         let payload = availability_payload(&availability.status);
 
-        let result = self
-            .client
-            .publish(topic.clone(), QoS::AtLeastOnce, true, payload)
-            .await;
+        let result = if let Some(expiry_secs) = self.config.availability_message_expiry_secs {
+            let properties = PublishProperties {
+                message_expiry_interval: Some(expiry_secs),
+                ..PublishProperties::default()
+            };
+            self.client
+                .publish_with_properties(topic.clone(), QoS::AtLeastOnce, true, payload, properties)
+                .await
+        } else {
+            self.client
+                .publish(topic.clone(), QoS::AtLeastOnce, true, payload)
+                .await
+        };
 
         let outcome = if result.is_ok() { "ok" } else { "error" };
         mqtt_metrics().publishes_total.add(

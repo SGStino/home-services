@@ -6,6 +6,7 @@ pub struct HomeAssistantMqttConfig {
     pub broker_port: u16,
     pub client_id: String,
     pub availability_session: String,
+    pub availability_message_expiry_secs: Option<u32>,
     pub discovery_prefix: String,
     pub node_id: String,
 }
@@ -17,6 +18,7 @@ impl Default for HomeAssistantMqttConfig {
             broker_port: 1883,
             client_id: "hs-device-demo".to_string(),
             availability_session: "hs-device-demo".to_string(),
+            availability_message_expiry_secs: None,
             discovery_prefix: "homeassistant".to_string(),
             node_id: "hs-node-dev".to_string(),
         }
@@ -34,12 +36,17 @@ impl HomeAssistantMqttConfig {
             .map(|value| value.trim().to_string())
             .filter(|value| !value.is_empty())
             .unwrap_or_else(|| client_id.clone());
+        let availability_message_expiry_secs = env::var("MQTT_AVAILABILITY_EXPIRY_SECS")
+            .ok()
+            .and_then(|value| value.trim().parse::<u32>().ok())
+            .filter(|value| *value > 0);
 
         Self {
             broker_host,
             broker_port: 1883,
             client_id,
             availability_session,
+            availability_message_expiry_secs,
             discovery_prefix: "homeassistant".to_string(),
             node_id,
         }

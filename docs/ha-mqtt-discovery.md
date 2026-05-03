@@ -203,6 +203,12 @@ The MQTT client should:
 - publish `online` (retained) immediately after connecting
 - publish `offline` (retained) on clean shutdown
 
+Optional automatic cleanup:
+
+- set `MQTT_AVAILABILITY_EXPIRY_SECS` (for example `86400`) to apply MQTT 5 message expiry to
+  retained availability publishes, including the last-will. Old retained availability topics then
+  age out without a separate janitor process.
+
 When one MQTT client represents multiple HA devices, those devices can all reference the same
 client/session availability topic. In this implementation, `client_id` comes from
 `MQTT_CLIENT_ID`, while `session_id` defaults to the same value and can be overridden via
@@ -299,10 +305,10 @@ Initial implementation will focus on `sensor`, `binary_sensor`, and `switch`.
 ## Implementation checklist for hs-eventbus-mqtt-ha
 
 - [ ] MQTT client setup with configurable host/port/client-id
-- [ ] Last-will registration on node availability topic before connect
-- [ ] Publish `online` to node availability topic after connect (retained)
+- [ ] Last-will registration on client/session availability topic before connect
+- [ ] Publish `online` to client/session availability topic after connect (retained)
 - [ ] Publish config payload for each capability (retained, QoS 1)
 - [ ] Publish state updates (QoS 0 or 1)
 - [ ] Subscribe to command topics for writable entities
-- [ ] Publish `offline` to node availability topic on clean shutdown (retained)
+- [ ] Publish `offline` to client/session availability topic on clean shutdown (retained)
 - [ ] Publish empty config payload to remove entities on deregister
