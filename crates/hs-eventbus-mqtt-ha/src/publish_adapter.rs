@@ -119,6 +119,11 @@ impl EventBusAdapter for HomeAssistantMqttPublishAdapter {
     }
 
     async fn publish_discovery(&self, discovery: &DiscoveryMessage) -> Result<()> {
+        let availability_topic = availability_topic(
+            &self.config.node_id,
+            &self.config.availability_session,
+        );
+
         for capability in &discovery.capabilities {
             let topic = config_topic(
                 &self.config.discovery_prefix,
@@ -126,7 +131,12 @@ impl EventBusAdapter for HomeAssistantMqttPublishAdapter {
                 capability,
                 &discovery.device.device_id,
             );
-            let payload = discovery_payload(discovery, capability, &self.config.node_id);
+            let payload = discovery_payload(
+                discovery,
+                capability,
+                &self.config.node_id,
+                &availability_topic,
+            );
 
             let result = self
                 .client
@@ -172,7 +182,10 @@ impl EventBusAdapter for HomeAssistantMqttPublishAdapter {
     }
 
     async fn publish_availability(&self, availability: &AvailabilityMessage) -> Result<()> {
-        let topic = availability_topic(&self.config.node_id);
+        let topic = availability_topic(
+            &self.config.node_id,
+            &self.config.availability_session,
+        );
         let payload = availability_payload(&availability.status);
 
         let result = self

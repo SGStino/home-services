@@ -48,12 +48,12 @@ hs/state/hs-node-dev/living-room-sensor-01/temperature
 ### Availability
 
 ```
-hs/availability/<node_id>
+hs/availability/<node_id>/<session_id>
 ```
 
 Example:
 ```
-hs/availability/hs-node-dev
+hs/availability/hs-node-dev/hs_adapter_hs_node_dev_1742230400123
 ```
 
 ### Command (optional, writable entities only)
@@ -86,7 +86,7 @@ Publishing an empty payload (`""`) to the config topic removes the entity from H
   "value_template": "{{ value_json.value }}",
   "json_attributes_topic": "hs/state/hs-node-dev/living-room-sensor-01/temperature",
   "json_attributes_template": "{{ {'ts': value_json.ts} | tojson }}",
-  "availability_topic": "hs/availability/hs-node-dev",
+  "availability_topic": "hs/availability/hs-node-dev/hs_adapter_hs_node_dev_1742230400123",
   "payload_available": "online",
   "payload_not_available": "offline",
   "device": {
@@ -111,7 +111,7 @@ Publishing an empty payload (`""`) to the config topic removes the entity from H
   "json_attributes_template": "{{ {'ts': value_json.ts} | tojson }}",
   "payload_on": "true",
   "payload_off": "false",
-  "availability_topic": "hs/availability/hs-node-dev",
+  "availability_topic": "hs/availability/hs-node-dev/hs_adapter_hs_node_dev_1742230400123",
   "payload_available": "online",
   "payload_not_available": "offline",
   "device": {
@@ -136,7 +136,7 @@ Publishing an empty payload (`""`) to the config topic removes the entity from H
   "command_topic": "hs/command/hs-node-dev/my-switch-01/state",
   "payload_on": "ON",
   "payload_off": "OFF",
-  "availability_topic": "hs/availability/hs-node-dev",
+  "availability_topic": "hs/availability/hs-node-dev/hs_adapter_hs_node_dev_1742230400123",
   "payload_available": "online",
   "payload_not_available": "offline",
   "device": {
@@ -199,13 +199,17 @@ The availability topic carries a plain string payload.
 | last-will set to `offline`         | HA marks unavailable if MQTT connection drops |
 
 The MQTT client should:
-- set its **last-will** to `offline` on the node availability topic before connecting
+- set its **last-will** to `offline` on its session availability topic before connecting
 - publish `online` (retained) immediately after connecting
 - publish `offline` (retained) on clean shutdown
 
 When one MQTT client represents multiple HA devices, those devices can all reference the same
-node availability topic. In that model, discovery remains per device and entity, while
-availability reflects whether the node or bridge process behind the client session is alive.
+session availability topic. In this implementation, `session_id` defaults to `MQTT_CLIENT_ID`
+and can be overridden via `MQTT_AVAILABILITY_SESSION`.
+
+This avoids rollout races in deployments: a new pod publishes retained discovery that points HA
+entities at the new session topic, so a late offline/LWT from an old pod only affects the old
+session topic and does not mark the new instance unavailable.
 
 ---
 

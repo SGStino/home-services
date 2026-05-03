@@ -3,12 +3,13 @@ use hs_device_contracts::{
 };
 use serde_json::{json, Value};
 
-use crate::topics::{availability_topic, command_topic, state_topic};
+use crate::topics::{command_topic, state_topic};
 
 pub fn discovery_payload(
     discovery: &DiscoveryMessage,
     capability: &CapabilityDescriptor,
     node_id: &str,
+    availability_topic: &str,
 ) -> Value {
     let device = &discovery.device;
     let state_topic = state_topic(node_id, &device.device_id, &capability.capability_id);
@@ -21,7 +22,7 @@ pub fn discovery_payload(
             capability.capability_id
         ),
         "state_topic": state_topic,
-        "availability_topic": availability_topic(node_id),
+        "availability_topic": availability_topic,
         "payload_available": "online",
         "payload_not_available": "offline",
         "value_template": "{{ value_json.value }}",
@@ -148,7 +149,12 @@ mod tests {
             unit_of_measurement: Some("°C".to_string()),
         };
 
-        let payload = discovery_payload(&discovery, &capability, "hs-node-dev");
+        let payload = discovery_payload(
+            &discovery,
+            &capability,
+            "hs-node-dev",
+            "hs/availability/hs-node-dev/session-a",
+        );
 
         assert_eq!(payload["value_template"], "{{ value_json.value }}");
         assert_eq!(
@@ -181,7 +187,12 @@ mod tests {
             unit_of_measurement: None,
         };
 
-        let payload = discovery_payload(&discovery, &capability, "hs-node-dev");
+        let payload = discovery_payload(
+            &discovery,
+            &capability,
+            "hs-node-dev",
+            "hs/availability/hs-node-dev/session-a",
+        );
 
         assert!(payload.get("state_topic").is_none());
         assert!(payload.get("value_template").is_none());

@@ -40,8 +40,9 @@ impl IngestAdapter for HomeAssistantMqttIngestAdapter {
         let discovery_filter = format!("{}/+/+/+/config", self.config.discovery_prefix);
         client.subscribe(discovery_filter, QoS::AtLeastOnce).await?;
         client.subscribe("hs/state/+/+/+", QoS::AtLeastOnce).await?;
+        client.subscribe("hs/availability/+", QoS::AtLeastOnce).await?;
         client
-            .subscribe("hs/availability/+", QoS::AtLeastOnce)
+            .subscribe("hs/availability/+/+", QoS::AtLeastOnce)
             .await?;
 
         let discovery_prefix = self.config.discovery_prefix.clone();
@@ -142,9 +143,15 @@ fn parse_state_topic(topic: &str) -> Option<(String, String, String)> {
 
 fn parse_availability_message(topic: &str, payload: &[u8]) -> Option<(String, Availability)> {
     let parts: Vec<&str> = topic.split('/').collect();
-    if parts.len() != 3 || parts[0] != "hs" || parts[1] != "availability" {
+    if parts[0] != "hs" || parts[1] != "availability" {
         return None;
     }
+
+    let node_id = match parts.as_slice() {
+        ["hs", "availability", node_id] => (*node_id).to_string(),
+        ["hs", "availability", node_id, _session_id] => (*node_id).to_string(),
+        _ => return None,
+    };
 
     let status_text = String::from_utf8_lossy(payload).trim().to_ascii_lowercase();
     let status = match status_text.as_str() {
@@ -154,7 +161,7 @@ fn parse_availability_message(topic: &str, payload: &[u8]) -> Option<(String, Av
         _ => return None,
     };
 
-    Some((parts[2].to_string(), status))
+    Some((node_id, status))
 }
 
 fn parse_state_message(device_id: &str, capability_id: &str, payload: &[u8]) -> Option<StateMessage> {

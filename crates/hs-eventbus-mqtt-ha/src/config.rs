@@ -5,6 +5,7 @@ pub struct HomeAssistantMqttConfig {
     pub broker_host: String,
     pub broker_port: u16,
     pub client_id: String,
+    pub availability_session: String,
     pub discovery_prefix: String,
     pub node_id: String,
 }
@@ -15,6 +16,7 @@ impl Default for HomeAssistantMqttConfig {
             broker_host: "127.0.0.1".to_string(),
             broker_port: 1883,
             client_id: "hs-device-demo".to_string(),
+            availability_session: "hs-device-demo".to_string(),
             discovery_prefix: "homeassistant".to_string(),
             node_id: "hs-node-dev".to_string(),
         }
@@ -27,11 +29,17 @@ impl HomeAssistantMqttConfig {
         let node_id = env::var("MQTT_NODE_ID").unwrap_or_else(|_| "hs-node-dev".to_string());
         let client_id = env::var("MQTT_CLIENT_ID")
             .unwrap_or_else(|_| format!("hs-adapter-{}-{}", node_id, now_unix_ms));
+        let availability_session = env::var("MQTT_AVAILABILITY_SESSION")
+            .ok()
+            .map(|value| value.trim().to_string())
+            .filter(|value| !value.is_empty())
+            .unwrap_or_else(|| client_id.clone());
 
         Self {
             broker_host,
             broker_port: 1883,
             client_id,
+            availability_session,
             discovery_prefix: "homeassistant".to_string(),
             node_id,
         }

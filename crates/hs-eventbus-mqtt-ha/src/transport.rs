@@ -20,7 +20,7 @@ pub fn build_mqtt_options(config: &HomeAssistantMqttConfig) -> MqttOptions {
     );
     options.set_keep_alive(Duration::from_secs(10));
 
-    let lwt_topic = availability_topic(&config.node_id);
+    let lwt_topic = availability_topic(&config.node_id, &config.availability_session);
     options.set_last_will(LastWill::new(
         lwt_topic,
         availability_payload(&Availability::Offline),

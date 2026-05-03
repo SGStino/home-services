@@ -18,8 +18,12 @@ pub fn state_topic(node_id: &str, device_id: &str, capability_id: &str) -> Strin
     )
 }
 
-pub fn availability_topic(node_id: &str) -> String {
-    format!("hs/availability/{}", sanitize(node_id))
+pub fn availability_topic(node_id: &str, session_id: &str) -> String {
+    format!(
+        "hs/availability/{}/{}",
+        sanitize(node_id),
+        sanitize(session_id)
+    )
 }
 
 pub fn config_topic(
