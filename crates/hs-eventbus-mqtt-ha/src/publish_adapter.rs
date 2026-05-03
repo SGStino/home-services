@@ -121,6 +121,7 @@ impl EventBusAdapter for HomeAssistantMqttPublishAdapter {
     async fn publish_discovery(&self, discovery: &DiscoveryMessage) -> Result<()> {
         let availability_topic = availability_topic(
             &self.config.node_id,
+            &self.config.client_id,
             &self.config.availability_session,
         );
 
@@ -184,6 +185,7 @@ impl EventBusAdapter for HomeAssistantMqttPublishAdapter {
     async fn publish_availability(&self, availability: &AvailabilityMessage) -> Result<()> {
         let topic = availability_topic(
             &self.config.node_id,
+            &self.config.client_id,
             &self.config.availability_session,
         );
         let payload = availability_payload(&availability.status);

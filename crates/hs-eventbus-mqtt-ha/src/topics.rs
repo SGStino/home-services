@@ -18,10 +18,11 @@ pub fn state_topic(node_id: &str, device_id: &str, capability_id: &str) -> Strin
     )
 }
 
-pub fn availability_topic(node_id: &str, session_id: &str) -> String {
+pub fn availability_topic(node_id: &str, client_id: &str, session_id: &str) -> String {
     format!(
-        "hs/availability/{}/{}",
+        "hs/availability/{}/{}/{}",
         sanitize(node_id),
+        sanitize(client_id),
         sanitize(session_id)
     )
 }

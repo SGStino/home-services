@@ -48,12 +48,12 @@ hs/state/hs-node-dev/living-room-sensor-01/temperature
 ### Availability
 
 ```
-hs/availability/<node_id>/<session_id>
+hs/availability/<node_id>/<client_id>/<session_id>
 ```
 
 Example:
 ```
-hs/availability/hs-node-dev/hs_adapter_hs_node_dev_1742230400123
+hs/availability/hs-node-dev/device_demo_67c8f9d4d9_x8z6k/device_demo_67c8f9d4d9_x8z6k
 ```
 
 ### Command (optional, writable entities only)
@@ -86,7 +86,7 @@ Publishing an empty payload (`""`) to the config topic removes the entity from H
   "value_template": "{{ value_json.value }}",
   "json_attributes_topic": "hs/state/hs-node-dev/living-room-sensor-01/temperature",
   "json_attributes_template": "{{ {'ts': value_json.ts} | tojson }}",
-  "availability_topic": "hs/availability/hs-node-dev/hs_adapter_hs_node_dev_1742230400123",
+  "availability_topic": "hs/availability/hs-node-dev/device_demo_67c8f9d4d9_x8z6k/device_demo_67c8f9d4d9_x8z6k",
   "payload_available": "online",
   "payload_not_available": "offline",
   "device": {
@@ -111,7 +111,7 @@ Publishing an empty payload (`""`) to the config topic removes the entity from H
   "json_attributes_template": "{{ {'ts': value_json.ts} | tojson }}",
   "payload_on": "true",
   "payload_off": "false",
-  "availability_topic": "hs/availability/hs-node-dev/hs_adapter_hs_node_dev_1742230400123",
+  "availability_topic": "hs/availability/hs-node-dev/device_demo_67c8f9d4d9_x8z6k/device_demo_67c8f9d4d9_x8z6k",
   "payload_available": "online",
   "payload_not_available": "offline",
   "device": {
@@ -136,7 +136,7 @@ Publishing an empty payload (`""`) to the config topic removes the entity from H
   "command_topic": "hs/command/hs-node-dev/my-switch-01/state",
   "payload_on": "ON",
   "payload_off": "OFF",
-  "availability_topic": "hs/availability/hs-node-dev/hs_adapter_hs_node_dev_1742230400123",
+  "availability_topic": "hs/availability/hs-node-dev/device_demo_67c8f9d4d9_x8z6k/device_demo_67c8f9d4d9_x8z6k",
   "payload_available": "online",
   "payload_not_available": "offline",
   "device": {
@@ -204,8 +204,9 @@ The MQTT client should:
 - publish `offline` (retained) on clean shutdown
 
 When one MQTT client represents multiple HA devices, those devices can all reference the same
-session availability topic. In this implementation, `session_id` defaults to `MQTT_CLIENT_ID`
-and can be overridden via `MQTT_AVAILABILITY_SESSION`.
+client/session availability topic. In this implementation, `client_id` comes from
+`MQTT_CLIENT_ID`, while `session_id` defaults to the same value and can be overridden via
+`MQTT_AVAILABILITY_SESSION`.
 
 This avoids rollout races in deployments: a new pod publishes retained discovery that points HA
 entities at the new session topic, so a late offline/LWT from an old pod only affects the old
@@ -214,6 +215,8 @@ session topic and does not mark the new instance unavailable.
 Consumers that ingest availability from MQTT should follow discovery and subscribe to the
 advertised `availability_topic` values. When a retained discovery update changes the topic for the
 same entity key, the consumer should subscribe the new topic and unsubscribe the old one.
+Consumers should treat `availability_topic` as an opaque string from discovery and map exact
+topic values rather than parsing topic path segments.
 
 ---
 

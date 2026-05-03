@@ -47,6 +47,7 @@ impl IngestAdapter for HomeAssistantMqttIngestAdapter {
         tokio::spawn(async move {
             let mut discovery_availability_topics: HashMap<DiscoveryKey, String> = HashMap::new();
             let mut availability_topic_ref_count: HashMap<String, usize> = HashMap::new();
+            let mut availability_topic_node_id: HashMap<String, String> = HashMap::new();
 
             loop {
                 match event_loop.poll().await {
@@ -60,6 +61,7 @@ impl IngestAdapter for HomeAssistantMqttIngestAdapter {
                                     unsubscribe_availability_topic(
                                         &command_client,
                                         &mut availability_topic_ref_count,
+                                        &mut availability_topic_node_id,
                                         &topic,
                                     )
                                     .await;
@@ -72,9 +74,11 @@ impl IngestAdapter for HomeAssistantMqttIngestAdapter {
                             reconcile_availability_subscription(
                                 &command_client,
                                 &discovery_key,
+                                &node_id,
                                 availability_topic,
                                 &mut discovery_availability_topics,
                                 &mut availability_topic_ref_count,
+                                &mut availability_topic_node_id,
                             )
                             .await;
 
@@ -99,13 +103,16 @@ impl IngestAdapter for HomeAssistantMqttIngestAdapter {
                             continue;
                         }
 
-                        if let Some((node_id, status)) = parse_availability_message(&msg.topic, &msg.payload)
-                        {
-                            // Availability events map to node_id and are scoped by current discovery-managed
-                            // subscriptions so stale session topics can be unsubscribed.
+                        if let Some(node_id) = availability_topic_node_id.get(&msg.topic) {
+                            let Some(status) = parse_availability_status(&msg.payload) else {
+                                warn!(topic = %msg.topic, "failed to parse availability payload");
+                                continue;
+                            };
+
+                            // Availability topic identity comes from discovery payload mapping.
                             processor
                                 .on_availability(AvailabilityMessage {
-                                    device_id: node_id,
+                                    device_id: node_id.clone(),
                                     status,
                                     detail: "node-scoped availability".to_string(),
                                 })
@@ -162,27 +169,14 @@ fn parse_state_topic(topic: &str) -> Option<(String, String, String)> {
     ))
 }
 
-fn parse_availability_message(topic: &str, payload: &[u8]) -> Option<(String, Availability)> {
-    let parts: Vec<&str> = topic.split('/').collect();
-    if parts[0] != "hs" || parts[1] != "availability" {
-        return None;
-    }
-
-    let node_id = match parts.as_slice() {
-        ["hs", "availability", node_id] => (*node_id).to_string(),
-        ["hs", "availability", node_id, _session_id] => (*node_id).to_string(),
-        _ => return None,
-    };
-
+fn parse_availability_status(payload: &[u8]) -> Option<Availability> {
     let status_text = String::from_utf8_lossy(payload).trim().to_ascii_lowercase();
-    let status = match status_text.as_str() {
+    Some(match status_text.as_str() {
         "online" => Availability::Online,
         "offline" => Availability::Offline,
         "degraded" => Availability::Degraded,
         _ => return None,
-    };
-
-    Some((node_id, status))
+    })
 }
 
 fn parse_discovery_availability_topic(payload: &[u8]) -> Option<String> {
@@ -192,19 +186,17 @@ fn parse_discovery_availability_topic(payload: &[u8]) -> Option<String> {
         return None;
     }
 
-    if !topic.starts_with("hs/availability/") {
-        return None;
-    }
-
     Some(topic.to_string())
 }
 
 async fn reconcile_availability_subscription(
     client: &AsyncClient,
     discovery_key: &DiscoveryKey,
+    node_id: &str,
     next_topic: Option<String>,
     discovery_availability_topics: &mut HashMap<DiscoveryKey, String>,
     availability_topic_ref_count: &mut HashMap<String, usize>,
+    availability_topic_node_id: &mut HashMap<String, String>,
 ) {
     let current_topic = discovery_availability_topics.get(discovery_key).cloned();
     if current_topic == next_topic {
@@ -213,12 +205,26 @@ async fn reconcile_availability_subscription(
 
     let Some(next_topic) = next_topic else {
         if let Some(previous_topic) = discovery_availability_topics.remove(discovery_key) {
-            unsubscribe_availability_topic(client, availability_topic_ref_count, &previous_topic).await;
+            unsubscribe_availability_topic(
+                client,
+                availability_topic_ref_count,
+                availability_topic_node_id,
+                &previous_topic,
+            )
+            .await;
         }
         return;
     };
 
-    if !subscribe_availability_topic(client, availability_topic_ref_count, &next_topic).await {
+    if !subscribe_availability_topic(
+        client,
+        availability_topic_ref_count,
+        availability_topic_node_id,
+        &next_topic,
+        node_id,
+    )
+    .await
+    {
         warn!(
             discovery_key = ?discovery_key,
             topic = %next_topic,
@@ -230,14 +236,22 @@ async fn reconcile_availability_subscription(
     if let Some(previous_topic) = discovery_availability_topics
         .insert(discovery_key.clone(), next_topic)
     {
-        unsubscribe_availability_topic(client, availability_topic_ref_count, &previous_topic).await;
+        unsubscribe_availability_topic(
+            client,
+            availability_topic_ref_count,
+            availability_topic_node_id,
+            &previous_topic,
+        )
+        .await;
     }
 }
 
 async fn subscribe_availability_topic(
     client: &AsyncClient,
     availability_topic_ref_count: &mut HashMap<String, usize>,
+    availability_topic_node_id: &mut HashMap<String, String>,
     topic: &str,
+    node_id: &str,
 ) -> bool {
     let ref_count = availability_topic_ref_count.get(topic).copied().unwrap_or(0);
     if ref_count == 0
@@ -249,6 +263,20 @@ async fn subscribe_availability_topic(
         return false;
     }
 
+    if ref_count == 0 {
+        availability_topic_node_id.insert(topic.to_string(), node_id.to_string());
+    } else if availability_topic_node_id
+        .get(topic)
+        .is_some_and(|mapped_node_id| mapped_node_id != node_id)
+    {
+        warn!(
+            topic = %topic,
+            existing_node_id = %availability_topic_node_id.get(topic).cloned().unwrap_or_default(),
+            new_node_id = %node_id,
+            "availability topic reused across node ids; retaining original node mapping"
+        );
+    }
+
     availability_topic_ref_count.insert(topic.to_string(), ref_count + 1);
     true
 }
@@ -256,6 +284,7 @@ async fn subscribe_availability_topic(
 async fn unsubscribe_availability_topic(
     client: &AsyncClient,
     availability_topic_ref_count: &mut HashMap<String, usize>,
+    availability_topic_node_id: &mut HashMap<String, String>,
     topic: &str,
 ) {
     let Some(ref_count) = availability_topic_ref_count.get(topic).copied() else {
@@ -268,6 +297,7 @@ async fn unsubscribe_availability_topic(
     }
 
     availability_topic_ref_count.remove(topic);
+    availability_topic_node_id.remove(topic);
     if let Err(err) = client.unsubscribe(topic.to_string()).await {
         warn!(error = %err, topic = %topic, "failed to unsubscribe availability topic");
     }

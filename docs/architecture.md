@@ -133,10 +133,10 @@ For adapters that multiplex multiple devices through one client session, availab
 modeled at the node or service level rather than per device. In that case, multiple discovered
 devices can share the same availability topic while keeping distinct discovery and state topics.
 
-For Home Assistant MQTT, availability is scoped by both node and session
-(`hs/availability/<node_id>/<session_id>`). Discovery payloads for a running instance point to
-that instance's session topic so rolling restarts do not let a stale offline last-will from an
-older session mark the newer active session unavailable.
+For Home Assistant MQTT, availability is scoped by node, client, and session
+(`hs/availability/<node_id>/<client_id>/<session_id>`). Discovery payloads for a running instance
+point to that instance's client/session topic so rolling restarts do not let a stale offline
+last-will from an older session mark the newer active session unavailable.
 
 ## Why one microservice per device
 
