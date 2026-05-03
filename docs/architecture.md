@@ -294,6 +294,7 @@ For a Sparkplug adapter, the adapter is responsible for:
 - publishing birth and death certificates
 - publishing metric updates
 - exposing command handling in the Sparkplug model
+- tracking Sparkplug sequence continuity and requesting rebirth only on detected mismatch (not on every NBIRTH)
 
 The device communication tier should not contain Home Assistant-specific or Sparkplug-specific topic logic. That belongs in the adapter.
 

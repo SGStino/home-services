@@ -106,6 +106,23 @@ pub fn nbirth_payload(now_ms: u64) -> Vec<u8> {
     .encode_to_vec()
 }
 
+/// Build a Sparkplug NCMD payload requesting an edge node rebirth.
+pub fn rebirth_payload(now_ms: u64) -> Vec<u8> {
+    Payload {
+        timestamp: Some(now_ms),
+        metrics: vec![payload::Metric {
+            name: Some("Node Control/Rebirth".to_string()),
+            datatype: Some(DataType::Boolean as u32),
+            value: Some(payload::metric::Value::BooleanValue(true)),
+            ..Default::default()
+        }],
+        seq: Some(0),
+        uuid: None,
+        body: None,
+    }
+    .encode_to_vec()
+}
+
 pub fn metric_value_to_json(metric: &payload::Metric) -> Option<Value> {
     match &metric.value {
         Some(payload::metric::Value::BooleanValue(v)) => Some(Value::Bool(*v)),

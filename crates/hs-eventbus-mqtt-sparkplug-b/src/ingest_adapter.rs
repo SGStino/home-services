@@ -1,4 +1,6 @@
+use std::collections::HashMap;
 use std::sync::Arc;
+use std::time::{Duration, Instant};
 
 use anyhow::Result;
 use async_trait::async_trait;
@@ -12,11 +14,26 @@ use tracing::{debug, error, warn};
 
 use crate::{
     config::SparkplugBConfig,
-    payloads::{decode_payload, metric_value_to_json},
+    payloads::{decode_payload, metric_value_to_json, rebirth_payload},
     sparkplug::{datatype_from_u32, DataType},
-    topics::sanitize,
+    topics::{ncmd_topic, sanitize},
     transport::create_client,
 };
+
+const REBIRTH_REQUEST_COOLDOWN: Duration = Duration::from_secs(30);
+
+#[derive(Clone, Debug, Eq, Hash, PartialEq)]
+struct DeviceStreamKey {
+    group_id: String,
+    edge_node_id: String,
+    device_id: String,
+}
+
+#[derive(Clone, Debug, Eq, Hash, PartialEq)]
+struct EdgeNodeKey {
+    group_id: String,
+    edge_node_id: String,
+}
 
 #[derive(Clone, Debug)]
 pub struct SparkplugBMqttIngestAdapter {
@@ -56,6 +73,8 @@ impl IngestAdapter for SparkplugBMqttIngestAdapter {
         client.subscribe(state_filter, QoS::AtLeastOnce).await?;
 
         tokio::spawn(async move {
+            let mut expected_seq_by_device: HashMap<DeviceStreamKey, u8> = HashMap::new();
+            let mut last_rebirth_request_at: HashMap<EdgeNodeKey, Instant> = HashMap::new();
             loop {
                 match event_loop.poll().await {
                     Ok(Event::Incoming(Packet::Publish(msg))) => {
@@ -72,6 +91,17 @@ impl IngestAdapter for SparkplugBMqttIngestAdapter {
                                 &device_id,
                                 &msg.payload,
                             ) {
+                                if let Some(next_seq) = next_expected_seq_from_payload(&msg.payload) {
+                                    expected_seq_by_device.insert(
+                                        DeviceStreamKey {
+                                            group_id: group_id.clone(),
+                                            edge_node_id: edge_node_id.clone(),
+                                            device_id: device_id.clone(),
+                                        },
+                                        next_seq,
+                                    );
+                                }
+
                                 processor
                                     .on_discovery(discovery_key, discovery)
                                     .await;
@@ -81,7 +111,39 @@ impl IngestAdapter for SparkplugBMqttIngestAdapter {
                             continue;
                         }
 
-                        if let Some((_, _, device_id)) = parse_ddata_topic(&msg.topic) {
+                        if let Some((group_id, edge_node_id, device_id)) = parse_ddata_topic(&msg.topic) {
+                            let stream_key = DeviceStreamKey {
+                                group_id: group_id.clone(),
+                                edge_node_id: edge_node_id.clone(),
+                                device_id: device_id.clone(),
+                            };
+
+                            let observed_seq = payload_seq(&msg.payload);
+                            if let Some(observed_seq) = observed_seq {
+                                if let Some(expected_seq) = expected_seq_by_device.get(&stream_key).copied() {
+                                    if observed_seq != expected_seq {
+                                        maybe_request_rebirth(
+                                            &client,
+                                            &mut last_rebirth_request_at,
+                                            &group_id,
+                                            &edge_node_id,
+                                        )
+                                        .await;
+
+                                        warn!(
+                                            group_id = %group_id,
+                                            edge_node_id = %edge_node_id,
+                                            device_id = %device_id,
+                                            expected_seq,
+                                            observed_seq,
+                                            "Sparkplug sequence mismatch detected"
+                                        );
+                                    }
+                                }
+
+                                expected_seq_by_device.insert(stream_key, observed_seq.wrapping_add(1));
+                            }
+
                             match parse_state_messages(&device_id, &msg.payload) {
                                 Some(states) => {
                                     for state in states {
@@ -95,6 +157,12 @@ impl IngestAdapter for SparkplugBMqttIngestAdapter {
 
                         if let Some((group_id, edge_node_id, device_id)) = parse_ddeath_topic(&msg.topic)
                         {
+                            expected_seq_by_device.remove(&DeviceStreamKey {
+                                group_id: group_id.clone(),
+                                edge_node_id: edge_node_id.clone(),
+                                device_id: device_id.clone(),
+                            });
+
                             processor
                                 .on_tombstone(device_discovery_key(&group_id, &edge_node_id, &device_id))
                                 .await;
@@ -276,6 +344,51 @@ fn parse_state_messages(device_id: &str, payload: &[u8]) -> Option<Vec<StateMess
     }
 
     Some(messages)
+}
+
+fn payload_seq(payload: &[u8]) -> Option<u8> {
+    decode_payload(payload)
+        .and_then(|value| value.seq)
+        .and_then(|value| u8::try_from(value).ok())
+}
+
+fn next_expected_seq_from_payload(payload: &[u8]) -> Option<u8> {
+    payload_seq(payload).map(|value| value.wrapping_add(1))
+}
+
+async fn maybe_request_rebirth(
+    client: &rumqttc::AsyncClient,
+    last_rebirth_request_at: &mut HashMap<EdgeNodeKey, Instant>,
+    group_id: &str,
+    edge_node_id: &str,
+) {
+    let edge_key = EdgeNodeKey {
+        group_id: group_id.to_string(),
+        edge_node_id: edge_node_id.to_string(),
+    };
+
+    let now = Instant::now();
+    if let Some(previous) = last_rebirth_request_at.get(&edge_key) {
+        if now.duration_since(*previous) < REBIRTH_REQUEST_COOLDOWN {
+            return;
+        }
+    }
+
+    let topic = ncmd_topic(group_id, edge_node_id);
+    let payload = rebirth_payload(current_unix_ms());
+    if let Err(err) = client.publish(topic, QoS::AtLeastOnce, false, payload).await {
+        warn!(error = %err, edge_node_id = %edge_node_id, "failed to request rebirth after sequence mismatch");
+        return;
+    }
+
+    last_rebirth_request_at.insert(edge_key, now);
+}
+
+fn current_unix_ms() -> u64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_millis() as u64
 }
 
 #[cfg(test)]
