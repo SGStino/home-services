@@ -1,12 +1,11 @@
 use std::time::Duration;
 
-use std::collections::HashMap;
-use serde_json::Value;
-
 use anyhow::Result;
 use async_trait::async_trait;
 use hs_device_contracts::{CommandMessage, DeviceDescriptor, StateMessage};
-use hs_device_core::{run_device_service, DeviceRuntime, DeviceServiceBehavior, ServiceDirective};
+use hs_device_core::{
+    run_device_service, DeviceRuntime, DeviceServiceBehavior, ServiceDirective, StateFilter,
+};
 use hs_eventbus_mqtt_ha::HomeAssistantMqttAdapter;
 use serde_json::json;
 use tracing::{info, warn};
@@ -18,6 +17,13 @@ use crate::{
     tasmota_client::{TasmotaClient, TasmotaStatus},
     time::now_unix_ms,
 };
+
+const TASMOTA_TELEMETRY_THRESHOLDS: &[(&str, f64)] = &[
+    ("power_w", 0.001),
+    ("voltage_v", 0.001),
+    ("current_a", 0.001),
+    ("energy_total_kwh", 0.001),
+];
 
 pub async fn run() -> Result<()> {
     let config = ServiceConfig::from_env(now_unix_ms());
@@ -42,7 +48,7 @@ pub async fn run() -> Result<()> {
 
     let behavior = TasmotaBehavior {
         client,
-        last_states: HashMap::new(),
+        state_filter: StateFilter::with_numeric_thresholds(TASMOTA_TELEMETRY_THRESHOLDS),
     };
 
     run_device_service(
@@ -119,7 +125,7 @@ fn default_device_id(status: &TasmotaStatus) -> String {
 
 struct TasmotaBehavior {
     client: TasmotaClient,
-    last_states: HashMap<String, Value>, // capability_id -> last value
+    state_filter: StateFilter,
 }
 
 #[async_trait]
@@ -134,7 +140,9 @@ impl DeviceServiceBehavior<HomeAssistantMqttAdapter> for TasmotaBehavior {
 
     async fn initial_states(&mut self, device: &DeviceDescriptor) -> Result<Vec<StateMessage>> {
         let status = self.client.status().await?;
-        Ok(states_from_status(device, status, now_unix_ms()))
+        let states = states_from_status(device, status, now_unix_ms());
+        self.state_filter.seed_from_states(&states);
+        Ok(states)
     }
 
     async fn on_tick(
@@ -145,12 +153,8 @@ impl DeviceServiceBehavior<HomeAssistantMqttAdapter> for TasmotaBehavior {
         match self.client.status().await {
             Ok(status) => {
                 for state in states_from_status(device, status, now_unix_ms()) {
-                    let cap = state.capability_id.clone();
-                    let val = state.value.clone();
-                    let changed = self.last_states.get(&cap) != Some(&val);
-                    if changed {
-                        runtime.publish_state(state.clone()).await?;
-                        self.last_states.insert(cap, val);
+                    if self.state_filter.should_publish_and_remember(&state) {
+                        runtime.publish_state(state).await?;
                     }
                 }
             }
@@ -184,12 +188,8 @@ impl DeviceServiceBehavior<HomeAssistantMqttAdapter> for TasmotaBehavior {
 
         let status = self.client.status().await?;
         for state in states_from_status(device, status, now_unix_ms()) {
-            let cap = state.capability_id.clone();
-            let val = state.value.clone();
-            let changed = self.last_states.get(&cap) != Some(&val);
-            if changed {
-                runtime.publish_state(state.clone()).await?;
-                self.last_states.insert(cap, val);
+            if self.state_filter.should_publish_and_remember(&state) {
+                runtime.publish_state(state).await?;
             }
         }
         Ok(ServiceDirective::Continue)

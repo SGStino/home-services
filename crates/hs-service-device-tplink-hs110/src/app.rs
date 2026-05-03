@@ -3,7 +3,9 @@ use std::time::Duration;
 use anyhow::Result;
 use async_trait::async_trait;
 use hs_device_contracts::{CommandMessage, DeviceDescriptor, StateMessage};
-use hs_device_core::{run_device_service, DeviceRuntime, DeviceServiceBehavior, ServiceDirective};
+use hs_device_core::{
+    run_device_service, DeviceRuntime, DeviceServiceBehavior, ServiceDirective, StateFilter,
+};
 use hs_eventbus_mqtt_ha::HomeAssistantMqttAdapter;
 use serde_json::json;
 use tracing::{info, warn};
@@ -15,6 +17,13 @@ use crate::{
     hs110_client::{Hs110Client, Hs110Snapshot, Hs110SysInfo},
     time::now_unix_ms,
 };
+
+const HS110_TELEMETRY_THRESHOLDS: &[(&str, f64)] = &[
+    ("power_w", 0.001),
+    ("voltage_v", 0.001),
+    ("current_a", 0.001),
+    ("energy_total_kwh", 0.001),
+];
 
 pub async fn run() -> Result<()> {
     let config = ServiceConfig::from_env(now_unix_ms());
@@ -38,7 +47,10 @@ pub async fn run() -> Result<()> {
         .subscribe_device_commands(&device, &capabilities)
         .await?;
 
-    let behavior = Hs110Behavior { client };
+    let behavior = Hs110Behavior {
+        client,
+        state_filter: StateFilter::with_numeric_thresholds(HS110_TELEMETRY_THRESHOLDS),
+    };
 
     run_device_service(
         env!("CARGO_PKG_NAME"),
@@ -123,6 +135,7 @@ fn compact_mac(mac: &str) -> Option<String> {
 
 struct Hs110Behavior {
     client: Hs110Client,
+    state_filter: StateFilter,
 }
 
 #[async_trait]
@@ -137,7 +150,9 @@ impl DeviceServiceBehavior<HomeAssistantMqttAdapter> for Hs110Behavior {
 
     async fn initial_states(&mut self, device: &DeviceDescriptor) -> Result<Vec<StateMessage>> {
         let snapshot = self.client.snapshot().await?;
-        Ok(states_from_snapshot(device, snapshot, now_unix_ms()))
+        let states = states_from_snapshot(device, snapshot, now_unix_ms());
+        self.state_filter.seed_from_states(&states);
+        Ok(states)
     }
 
     async fn on_tick(
@@ -148,7 +163,9 @@ impl DeviceServiceBehavior<HomeAssistantMqttAdapter> for Hs110Behavior {
         match self.client.snapshot().await {
             Ok(snapshot) => {
                 for state in states_from_snapshot(device, snapshot, now_unix_ms()) {
-                    runtime.publish_state(state).await?;
+                    if self.state_filter.should_publish_and_remember(&state) {
+                        runtime.publish_state(state).await?;
+                    }
                 }
             }
             Err(error) => {
@@ -182,7 +199,9 @@ impl DeviceServiceBehavior<HomeAssistantMqttAdapter> for Hs110Behavior {
 
         let snapshot = self.client.snapshot().await?;
         for state in states_from_snapshot(device, snapshot, now_unix_ms()) {
-            runtime.publish_state(state).await?;
+            if self.state_filter.should_publish_and_remember(&state) {
+                runtime.publish_state(state).await?;
+            }
         }
 
         Ok(ServiceDirective::Continue)

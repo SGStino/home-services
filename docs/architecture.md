@@ -26,6 +26,7 @@ Current baseline module boundaries:
 	- `runtime.rs`: device runtime orchestration and publish paths
 	- `device_service.rs`: reusable service lifecycle loop (startup, command/tick loop, shutdown)
 	- `runtime_metrics.rs`: runtime metric instruments and initialization
+	- `state_filter.rs`: shared, device-agnostic state deduplication and optional numeric delta-threshold filtering utility; threshold profiles are configured by each device service.
 	- `telemetry.rs`: OpenTelemetry and tracing initialization
 - `hs-service-device-demo`
 	- `main.rs`: process entrypoint only
@@ -103,6 +104,7 @@ Responsibilities:
 - binding device communication to the selected event bus adapter
 - enforcing a small, consistent execution model across all services
 - providing a reusable service lifecycle runner so new device services only implement behavior callbacks
+- providing shared state emission filtering primitives so services can suppress duplicate/noise updates consistently
 
 The core is the main place where common engineering concerns live. Device-specific logic should stay out of it.
 
