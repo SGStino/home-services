@@ -54,6 +54,7 @@ where
             .publish_discovery(&DiscoveryMessage {
                 device,
                 capabilities,
+                availability_topic: None,
             })
             .instrument(publish_span)
             .await;

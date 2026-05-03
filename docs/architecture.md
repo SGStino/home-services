@@ -46,6 +46,12 @@ Current baseline module boundaries:
 	- `hs110_client.rs`: TP-Link HS110 request/response operations and snapshot modeling
 	- `tplink_protocol.rs`: TP-Link local framing and XOR cipher helpers
 	- `bootstrap.rs`, `command_payload.rs`, and `time.rs`: focused capability, command parsing, and timestamp helpers
+- `hs-service-timeseries-logger`
+	- `main.rs`: process entrypoint only
+	- `app.rs`: adapter/writer assembly and runtime wiring
+	- `status.rs`: metadata-only status model and HTML status endpoint
+	- `tracking_processor.rs`: event-processor wrapper that tracks discovered devices and tombstones without storing state values
+	- `influx_writer.rs` and `writer.rs`: point writer implementations only
 
 Guideline:
 

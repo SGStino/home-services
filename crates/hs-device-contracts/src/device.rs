@@ -16,4 +16,6 @@ pub struct DeviceDescriptor {
 pub struct DiscoveryMessage {
     pub device: DeviceDescriptor,
     pub capabilities: Vec<CapabilityDescriptor>,
+    #[serde(default)]
+    pub availability_topic: Option<String>,
 }

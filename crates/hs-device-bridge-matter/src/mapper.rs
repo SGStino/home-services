@@ -92,6 +92,7 @@ impl NodeSnapshot {
         DiscoveryMessage {
             device: self.descriptor(),
             capabilities: self.capabilities(),
+            availability_topic: None,
         }
     }
 

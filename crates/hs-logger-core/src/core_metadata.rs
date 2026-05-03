@@ -434,6 +434,7 @@ mod tests {
                 name: "name".to_string(),
                 sw_version: None,
             },
+            availability_topic: None,
             capabilities: capability_ids
                 .iter()
                 .map(|id| CapabilityDescriptor {

@@ -139,6 +139,7 @@ mod tests {
                 sw_version: Some("0.1.0".to_string()),
             },
             capabilities: Vec::new(),
+            availability_topic: None,
         };
         let capability = CapabilityDescriptor {
             capability_id: "temperature".to_string(),
@@ -179,6 +180,7 @@ mod tests {
                 sw_version: Some("0.1.0".to_string()),
             },
             capabilities: Vec::new(),
+            availability_topic: None,
         };
         let capability = CapabilityDescriptor {
             capability_id: "shutdown".to_string(),

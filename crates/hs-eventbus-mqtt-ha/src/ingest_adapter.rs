@@ -75,6 +75,7 @@ impl IngestAdapter for HomeAssistantMqttIngestAdapter {
                             }
 
                             let availability_topic = parse_discovery_availability_topic(&msg.payload);
+                            let availability_topic_for_discovery = availability_topic.clone();
                             reconcile_availability_subscription(
                                 &command_client,
                                 &discovery_key,
@@ -86,9 +87,10 @@ impl IngestAdapter for HomeAssistantMqttIngestAdapter {
                             )
                             .await;
 
-                            if let Some(discovery) =
+                            if let Some(mut discovery) =
                                 parse_discovery_message(&component, &node_id, &object_id, &msg.payload)
                             {
+                                discovery.availability_topic = availability_topic_for_discovery;
                                 processor.on_discovery(discovery_key, discovery).await;
                             } else {
                                 warn!(topic = %topic, "failed to parse discovery payload");
@@ -382,6 +384,7 @@ fn parse_discovery_message(
     Some(DiscoveryMessage {
         device: descriptor,
         capabilities: vec![capability],
+        availability_topic: None,
     })
 }
 

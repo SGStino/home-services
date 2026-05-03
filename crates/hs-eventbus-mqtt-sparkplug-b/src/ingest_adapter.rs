@@ -1,4 +1,5 @@
 use std::sync::Arc;
+use std::collections::HashSet;
 
 use anyhow::Result;
 use async_trait::async_trait;
@@ -57,6 +58,7 @@ impl IngestAdapter for SparkplugBMqttIngestAdapter {
 
         let group_id = self.config.group_id.clone();
         tokio::spawn(async move {
+            let mut rebirth_requested_edges: HashSet<String> = HashSet::new();
             loop {
                 match event_loop.poll().await {
                     Ok(Event::Incoming(Packet::Publish(msg))) => {
@@ -103,6 +105,10 @@ impl IngestAdapter for SparkplugBMqttIngestAdapter {
                         }
 
                         if let Some(edge_node_id) = parse_nbirth_topic(&msg.topic) {
+                            if !rebirth_requested_edges.insert(edge_node_id.clone()) {
+                                continue;
+                            }
+
                             let topic = ncmd_topic(&group_id, &edge_node_id);
                             let now_ms = current_unix_ms();
                             let payload = rebirth_payload(now_ms);
@@ -246,6 +252,7 @@ fn parse_discovery_message(
             sw_version: None,
         },
         capabilities,
+        availability_topic: Some(format!("spBv1.0/STATE/{}", edge_node_id)),
     })
 }
 
