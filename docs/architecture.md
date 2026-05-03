@@ -26,7 +26,7 @@ Current baseline module boundaries:
 	- `runtime.rs`: device runtime orchestration and publish paths
 	- `device_service.rs`: reusable service lifecycle loop (startup, command/tick loop, shutdown)
 	- `runtime_metrics.rs`: runtime metric instruments and initialization
-	- `state_filter.rs`: shared, device-agnostic state deduplication and optional numeric delta-threshold filtering utility; threshold profiles are configured by each device service.
+	- `state_filter.rs`: shared, device-agnostic state deduplication utility with optional numeric delta-threshold filtering and max-silence periodic re-emit; profiles are configured by each device service.
 	- `telemetry.rs`: OpenTelemetry and tracing initialization
 - `hs-service-device-demo`
 	- `main.rs`: process entrypoint only

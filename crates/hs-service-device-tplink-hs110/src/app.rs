@@ -25,6 +25,8 @@ const HS110_TELEMETRY_THRESHOLDS: &[(&str, f64)] = &[
     ("energy_total_kwh", 0.001),
 ];
 
+const FORCE_EMIT_AFTER_SILENCE_MS: u64 = 5 * 60 * 1_000;
+
 pub async fn run() -> Result<()> {
     let config = ServiceConfig::from_env(now_unix_ms());
     let client = Hs110Client::new(&config.hs110);
@@ -49,7 +51,8 @@ pub async fn run() -> Result<()> {
 
     let behavior = Hs110Behavior {
         client,
-        state_filter: StateFilter::with_numeric_thresholds(HS110_TELEMETRY_THRESHOLDS),
+        state_filter: StateFilter::with_numeric_thresholds(HS110_TELEMETRY_THRESHOLDS)
+            .with_force_emit_after_silence_ms(FORCE_EMIT_AFTER_SILENCE_MS),
     };
 
     run_device_service(
