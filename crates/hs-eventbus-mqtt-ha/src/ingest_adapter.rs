@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::sync::Arc;
 
 use anyhow::Result;
@@ -7,7 +8,7 @@ use hs_device_contracts::{
     DeviceDescriptor, DiscoveryMessage, LightFeatures, NumberConfig, StateMessage,
 };
 use hs_eventbus_api::{DiscoveryKey, EventProcessor, IngestAdapter};
-use rumqttc::{Event, Packet, QoS};
+use rumqttc::{AsyncClient, Event, Packet, QoS};
 use serde_json::Value;
 use tracing::{debug, error, warn};
 
@@ -40,13 +41,13 @@ impl IngestAdapter for HomeAssistantMqttIngestAdapter {
         let discovery_filter = format!("{}/+/+/+/config", self.config.discovery_prefix);
         client.subscribe(discovery_filter, QoS::AtLeastOnce).await?;
         client.subscribe("hs/state/+/+/+", QoS::AtLeastOnce).await?;
-        client.subscribe("hs/availability/+", QoS::AtLeastOnce).await?;
-        client
-            .subscribe("hs/availability/+/+", QoS::AtLeastOnce)
-            .await?;
 
         let discovery_prefix = self.config.discovery_prefix.clone();
+        let command_client = client.clone();
         tokio::spawn(async move {
+            let mut discovery_availability_topics: HashMap<DiscoveryKey, String> = HashMap::new();
+            let mut availability_topic_ref_count: HashMap<String, usize> = HashMap::new();
+
             loop {
                 match event_loop.poll().await {
                     Ok(Event::Incoming(Packet::Publish(msg))) => {
@@ -54,9 +55,28 @@ impl IngestAdapter for HomeAssistantMqttIngestAdapter {
                             parse_discovery_topic(&discovery_prefix, &msg.topic)
                         {
                             if msg.payload.is_empty() {
+                                if let Some(topic) = discovery_availability_topics.remove(&discovery_key)
+                                {
+                                    unsubscribe_availability_topic(
+                                        &command_client,
+                                        &mut availability_topic_ref_count,
+                                        &topic,
+                                    )
+                                    .await;
+                                }
                                 processor.on_tombstone(discovery_key).await;
                                 continue;
                             }
+
+                            let availability_topic = parse_discovery_availability_topic(&msg.payload);
+                            reconcile_availability_subscription(
+                                &command_client,
+                                &discovery_key,
+                                availability_topic,
+                                &mut discovery_availability_topics,
+                                &mut availability_topic_ref_count,
+                            )
+                            .await;
 
                             if let Some(discovery) =
                                 parse_discovery_message(&component, &node_id, &object_id, &msg.payload)
@@ -81,7 +101,8 @@ impl IngestAdapter for HomeAssistantMqttIngestAdapter {
 
                         if let Some((node_id, status)) = parse_availability_message(&msg.topic, &msg.payload)
                         {
-                            // Availability is currently node-scoped in MQTT, so device_id is mapped to node_id.
+                            // Availability events map to node_id and are scoped by current discovery-managed
+                            // subscriptions so stale session topics can be unsubscribed.
                             processor
                                 .on_availability(AvailabilityMessage {
                                     device_id: node_id,
@@ -162,6 +183,94 @@ fn parse_availability_message(topic: &str, payload: &[u8]) -> Option<(String, Av
     };
 
     Some((node_id, status))
+}
+
+fn parse_discovery_availability_topic(payload: &[u8]) -> Option<String> {
+    let payload: Value = serde_json::from_slice(payload).ok()?;
+    let topic = payload.get("availability_topic")?.as_str()?.trim();
+    if topic.is_empty() {
+        return None;
+    }
+
+    if !topic.starts_with("hs/availability/") {
+        return None;
+    }
+
+    Some(topic.to_string())
+}
+
+async fn reconcile_availability_subscription(
+    client: &AsyncClient,
+    discovery_key: &DiscoveryKey,
+    next_topic: Option<String>,
+    discovery_availability_topics: &mut HashMap<DiscoveryKey, String>,
+    availability_topic_ref_count: &mut HashMap<String, usize>,
+) {
+    let current_topic = discovery_availability_topics.get(discovery_key).cloned();
+    if current_topic == next_topic {
+        return;
+    }
+
+    let Some(next_topic) = next_topic else {
+        if let Some(previous_topic) = discovery_availability_topics.remove(discovery_key) {
+            unsubscribe_availability_topic(client, availability_topic_ref_count, &previous_topic).await;
+        }
+        return;
+    };
+
+    if !subscribe_availability_topic(client, availability_topic_ref_count, &next_topic).await {
+        warn!(
+            discovery_key = ?discovery_key,
+            topic = %next_topic,
+            "failed to subscribe availability topic; keeping previous subscription"
+        );
+        return;
+    }
+
+    if let Some(previous_topic) = discovery_availability_topics
+        .insert(discovery_key.clone(), next_topic)
+    {
+        unsubscribe_availability_topic(client, availability_topic_ref_count, &previous_topic).await;
+    }
+}
+
+async fn subscribe_availability_topic(
+    client: &AsyncClient,
+    availability_topic_ref_count: &mut HashMap<String, usize>,
+    topic: &str,
+) -> bool {
+    let ref_count = availability_topic_ref_count.get(topic).copied().unwrap_or(0);
+    if ref_count == 0
+        && client
+            .subscribe(topic.to_string(), QoS::AtLeastOnce)
+            .await
+            .is_err()
+    {
+        return false;
+    }
+
+    availability_topic_ref_count.insert(topic.to_string(), ref_count + 1);
+    true
+}
+
+async fn unsubscribe_availability_topic(
+    client: &AsyncClient,
+    availability_topic_ref_count: &mut HashMap<String, usize>,
+    topic: &str,
+) {
+    let Some(ref_count) = availability_topic_ref_count.get(topic).copied() else {
+        return;
+    };
+
+    if ref_count > 1 {
+        availability_topic_ref_count.insert(topic.to_string(), ref_count - 1);
+        return;
+    }
+
+    availability_topic_ref_count.remove(topic);
+    if let Err(err) = client.unsubscribe(topic.to_string()).await {
+        warn!(error = %err, topic = %topic, "failed to unsubscribe availability topic");
+    }
 }
 
 fn parse_state_message(device_id: &str, capability_id: &str, payload: &[u8]) -> Option<StateMessage> {

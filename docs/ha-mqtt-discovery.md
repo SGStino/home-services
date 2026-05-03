@@ -211,6 +211,10 @@ This avoids rollout races in deployments: a new pod publishes retained discovery
 entities at the new session topic, so a late offline/LWT from an old pod only affects the old
 session topic and does not mark the new instance unavailable.
 
+Consumers that ingest availability from MQTT should follow discovery and subscribe to the
+advertised `availability_topic` values. When a retained discovery update changes the topic for the
+same entity key, the consumer should subscribe the new topic and unsubscribe the old one.
+
 ---
 
 ## State values
