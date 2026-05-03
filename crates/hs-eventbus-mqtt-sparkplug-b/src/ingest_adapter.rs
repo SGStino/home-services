@@ -1,5 +1,4 @@
 use std::sync::Arc;
-use std::collections::HashSet;
 
 use anyhow::Result;
 use async_trait::async_trait;
@@ -13,9 +12,9 @@ use tracing::{debug, error, warn};
 
 use crate::{
     config::SparkplugBConfig,
-    payloads::{decode_payload, metric_value_to_json, rebirth_payload},
+    payloads::{decode_payload, metric_value_to_json},
     sparkplug::{datatype_from_u32, DataType},
-    topics::{ncmd_topic, sanitize},
+    topics::sanitize,
     transport::create_client,
 };
 
@@ -56,9 +55,7 @@ impl IngestAdapter for SparkplugBMqttIngestAdapter {
         client.subscribe(nbirth_filter, QoS::AtLeastOnce).await?;
         client.subscribe(state_filter, QoS::AtLeastOnce).await?;
 
-        let group_id = self.config.group_id.clone();
         tokio::spawn(async move {
-            let mut rebirth_requested_edges: HashSet<String> = HashSet::new();
             loop {
                 match event_loop.poll().await {
                     Ok(Event::Incoming(Packet::Publish(msg))) => {
@@ -104,19 +101,7 @@ impl IngestAdapter for SparkplugBMqttIngestAdapter {
                             continue;
                         }
 
-                        if let Some(edge_node_id) = parse_nbirth_topic(&msg.topic) {
-                            if !rebirth_requested_edges.insert(edge_node_id.clone()) {
-                                continue;
-                            }
-
-                            let topic = ncmd_topic(&group_id, &edge_node_id);
-                            let now_ms = current_unix_ms();
-                            let payload = rebirth_payload(now_ms);
-                            if let Err(err) = client.publish(topic, QoS::AtLeastOnce, false, payload).await {
-                                warn!(error = %err, edge_node_id = %edge_node_id, "failed to send rebirth NCMD");
-                            } else {
-                                debug!(edge_node_id = %edge_node_id, "sent rebirth NCMD to edge node");
-                            }
+                        if parse_nbirth_topic(&msg.topic).is_some() {
                             continue;
                         }
 
@@ -216,13 +201,6 @@ fn parse_nbirth_topic(topic: &str) -> Option<String> {
         return None;
     }
     Some(parts[3].to_string())
-}
-
-fn current_unix_ms() -> u64 {
-    std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_millis() as u64
 }
 
 fn parse_discovery_message(
